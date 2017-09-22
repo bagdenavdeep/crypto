@@ -4,216 +4,190 @@ import "./Oraclize.sol";
 
 contract Binomo is usingOraclize
 {
-    event UpSuccess(string status, address indexed EtherSentBy);
-    event UpPlayerResult(string result, address indexed player, uint query1Result, uint query2Result, uint time);
-    event UpStats(uint indexed totalBets, uint indexed total_amount_won, uint indexed total_bets_won, uint win_rate);
+    event success(string status, address indexed etherSentBy);
+    event traderResult(string result, address indexed trader, uint firstResultFromOraclize, uint secondResultFromOraclize, uint time);
+    event stats(uint indexed totalDills, uint indexed totalAmountWon, uint indexed totalDillsWon, uint winRate);
 
-    uint public UP_totalBets; // to store total no of bets
-    uint public UP_etherWin; // total amount of ether Won by players
-    uint public UP_winBets; // total no of bets
-    uint public UP_winRate; // to store win rate percentage
-    uint public min_bet = 10000000000000000; // In wei (0.01 ETH)
-    uint public max_bet = 50000000000000000; // In wei (0.05 ETH)
-	uint public percentWin = 75;
-	uint256 public unixtime;
-	uint256 public unixtimeExpire;
-	address public addressUp = 0xea42f5352350f65823ab97670c7bd7410c322f0b;
-	address public addressDown = 0x51a0263dba30b40c7057c614476d02f5f1e4dbe0;
-	bool public isBinomo = false;
-	string public quote;
+	uint public minDill 		   = 10000000000000000; // In wei (0.01 ETH)
+    uint public maxDill   		   = 50000000000000000; // In wei (0.05 ETH)
+	uint public percentWin 		   = 75;
+	uint public secondsNextRequest = 60;
 
-    struct Player {
-		address playerAddress;
-		uint playerbetvalue;
-		bytes32 queryid1;
-		bytes32 queryid2;
-		uint queryResult1;
-		uint queryResult2;
+	address walletBinomo		   = 0x2cf8f59a7e5d01e6ec090cad7f010f0007ac2a45;
+
+    uint public totalDills;
+    uint public etherWin;
+    uint public winBets;
+    uint public winRate;
+
+	enum action {call, put}
+
+    struct Trader {
+		address traderAddress;
+		uint traderDillValue;
+		bytes32 firstQueryIdFromOraclize;
+		bytes32 secondQueryIdFromOraclize;
+		uint firstResultFromOraclize;
+		uint secondResultFromOraclize;
+		bool traderIsBinomo;
+		uint256 traderUnixtime;
+		uint256 traderUnixtimeExpire;
+		string traderQuote;
+		action traderAction;
 	}
 
-    mapping (bytes32 => Player) Players;
+    mapping (bytes32 => Trader) Traders;
 
-    address owner;   //address owner of the contract
+    address owner;
 
-    // Functions with this modifier can only be executed by the owner
     modifier onlyOwner() {
 		require(msg.sender == owner);
         _;
     }
 
-	function ()payable {
-		if (msg.sender == owner) {
-			UpSuccess("Contract is funded", owner);
-		} else {
-			createBet();
-		}
+	function () payable {
+		require(msg.sender != owner);
+		createDill();
 	}
 
-    function createBet()payable {
-       if (msg.value > max_bet || msg.value < min_bet) {
-           UpSuccess("Invalid payment", msg.sender);
+    function createDill() payable {
+       if (msg.value > maxDill || msg.value < minDill) {
+           success("Invalid payment", msg.sender);
            /*msg.sender.transfer(msg.value - 2000);*/
        } else {
-	       UpSuccess("payment received", msg.sender);
+	       success("Payment received", msg.sender);
 
-		   bytes32 rngId1 = oraclize_query("URL", "json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD");
+		   bytes32 id = oraclize_query("URL", "json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD");
 
-	       Players[rngId1].playerAddress = msg.sender;
-	       Players[rngId1].playerbetvalue = msg.value;
-	       Players[rngId1].queryid1 = rngId1;
-	       Players[rngId1].queryid2 = bytes32(0);
+	       Traders[id].traderAddress = msg.sender;
+	       Traders[id].traderDillValue = msg.value;
+	       Traders[id].firstQueryIdFromOraclize = id;
+	       Traders[id].secondQueryIdFromOraclize = bytes32(0);
+		   Traders[id].traderIsBinomo = false;
+		   /*Traders[id].traderQuote = 'ETHUSD';*/
+		   /*Traders[id].traderAction = action.action;*/
        }
     }
 
-	function createBetBinomo()payable {
-		if (msg.value > max_bet || msg.value < min_bet) {
-			UpSuccess("Invalid payment", msg.sender);
+	function createDillBinomo(string quoteBinomo, uint256 unixtimeBinomo, uint256 unixtimeExpireBinomo) onlyOwner payable {
+
+		if (msg.value > maxDill || msg.value < minDill) {
+			success("Invalid payment", msg.sender);
 			/*msg.sender.transfer(amount - 2000);*/
 		} else {
-			UpSuccess("payment received", msg.sender);
+			success("payment received", msg.sender);
 
-			isBinomo = true;
+			bytes32 id = oraclize_query("URL", strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(unixtimeBinomo), ").ETH.USD"));
 
-			bytes32 rngId1 = oraclize_query("URL", strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(unixtime), ").ETH.USD"));
-
-			Players[rngId1].playerAddress = msg.sender;
-			Players[rngId1].playerbetvalue = msg.value;
-			Players[rngId1].queryid1 = rngId1;
-			Players[rngId1].queryid2 = bytes32(0);
+			Traders[id].traderAddress = msg.sender;
+			Traders[id].traderDillValue = msg.value;
+			Traders[id].firstQueryIdFromOraclize = id;
+			Traders[id].secondQueryIdFromOraclize = bytes32(0);
+			Traders[id].traderIsBinomo = true;
+			/*Traders[id].traderAction = actionBinomo.action;*/
 
 		}
 	}
 
-    function Binomo()payable {
+    function Binomo() payable {
         owner = msg.sender;
     }
 
-	function __callback(bytes32 myid, string result) {
+	function __callback(bytes32 currentId, string result) {
 
-		// just to be sure the calling address is the Oraclize authorized one
-		if (!isBinomo) {
-			require(msg.sender == oraclize_cbAddress());
-		}
+		require(msg.sender == oraclize_cbAddress());
 
-		if (Players[myid].queryid1 == myid && Players[myid].queryid2 == 0) {
+		if (Traders[currentId].firstQueryIdFromOraclize == currentId && Traders[currentId].secondQueryIdFromOraclize == 0) {
 
-		    Players[myid].queryResult1 = stringToUint(result);
+		    Traders[currentId].firstResultFromOraclize = stringToUint(result);
 
-			bytes32 rngId2;
+			bytes32 id;
 
-			if (isBinomo) {
-				rngId2 = oraclize_query(unixtimeExpire - unixtime, "URL", strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(unixtimeExpire), ").ETH.USD"));
+			if (Traders[currentId].traderIsBinomo) {
+				id = oraclize_query(Traders[currentId].unixtimeExpire - Traders[currentId].unixtime, "URL", strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(Traders[currentId].unixtimeExpire), ").ETH.USD"));
 			} else {
-				rngId2 = oraclize_query(60, "URL","json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD");
+				id = oraclize_query(secondsNextRequest, "URL","json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD");
 			}
 
-		    Players[myid].queryid1 = bytes32(0);
+		    Traders[currentId].firstQueryIdFromOraclize = bytes32(0);
 
-		    Players[rngId2].queryid1 = bytes32(0);
-		    Players[rngId2].playerAddress = Players[myid].playerAddress;
-		    Players[rngId2].playerbetvalue = Players[myid].playerbetvalue;
-		    Players[rngId2].queryResult1 = Players[myid].queryResult1;
-		    Players[rngId2].queryid2 = rngId2;
+		    Traders[id].firstQueryIdFromOraclize = bytes32(0);
+		    Traders[id].traderAddress = Traders[currentId].traderAddress;
+		    Traders[id].traderDillValue = Traders[currentId].traderDillValue;
+		    Traders[id].firstResultFromOraclize = Traders[currentId].firstResultFromOraclize;
+		    Traders[id].secondQueryIdFromOraclize = id;
 
-		} else if (Players[myid].queryid2 == myid && Players[myid].queryid1 == 0) {
+		} else if (Traders[currentId].secondQueryIdFromOraclize == currentId && Traders[currentId].firstQueryIdFromOraclize == 0) {
 
-		    /* the result is checked based on the results fetched in call back function */
+		    Traders[currentId].secondResultFromOraclize = stringToUint(result);
 
-		    Players[myid].queryResult2 = stringToUint(result);
+			if (Traders[currentId].traderAction) {
 
-			if (isBinomo) {
-				if ((Players[myid].queryResult1 < Players[myid].queryResult2) || (Players[myid].queryResult1 > Players[myid].queryResult2)) {
+			}
+
+			/*if (isBinomo) {
+				if ((Traders[myid].queryResult1 < Traders[myid].queryResult2) || (Traders[myid].queryResult1 > Traders[myid].queryResult2)) {
 					betBinomoWin(myid);
-				} else if ((Players[myid].queryResult1 > Players[myid].queryResult2) || (Players[myid].queryResult1 < Players[myid].queryResult2)) {
+				} else if ((Traders[myid].queryResult1 > Traders[myid].queryResult2) || (Traders[myid].queryResult1 < Traders[myid].queryResult2)) {
 					betBinomoLose(myid);
 				}
 			} else {
-				if ((owner == addressUp && Players[myid].queryResult1 < Players[myid].queryResult2) || (owner == addressDown && Players[myid].queryResult1 > Players[myid].queryResult2)) {
+				if ((owner == addressUp && Traders[myid].queryResult1 < Traders[myid].queryResult2) || (owner == addressDown && Traders[myid].queryResult1 > Traders[myid].queryResult2)) {
 					betWin(myid);
-				} else if ((owner == addressUp && Players[myid].queryResult1 > Players[myid].queryResult2) || (owner == addressDown && Players[myid].queryResult1 < Players[myid].queryResult2)) {
+				} else if ((owner == addressUp && Traders[myid].queryResult1 > Traders[myid].queryResult2) || (owner == addressDown && Traders[myid].queryResult1 < Traders[myid].queryResult2)) {
 					betLose(myid);
 				}
-			}
+			}*/
 		}
 	}
 
-	function betWin(bytes32 myid) {
-		// Player wins
-		UP_totalBets++;
-		UP_winBets++;
-		UP_winRate = UP_winBets * 100 / UP_totalBets; // Must be DIVIDED BY 100 when displayed on frontend
-		UP_etherWin = UP_etherWin + ((Players[myid].playerbetvalue * percentWin) / 100);
-		UpPlayerResult("WIN", Players[myid].playerAddress, Players[myid].queryResult1, Players[myid].queryResult2, now);
-		winnerReward(Players[myid].playerAddress, Players[myid].playerbetvalue);
+	function dillWin(bytes32 currentId) {
+		totalDills++;
+		winBets++;
+		winRate = winDills * 100 / totalDills;
+		etherWin = etherWin + ((Traders[currentId].traderDillValue * percentWin) / 100);
+		traderResult("WIN", Traders[currentId].traderAddress, Traders[currentId].firstResultFromOraclize, Traders[currentId].secondResultFromOraclize, now);
+		winnerReward(Traders[currentId].traderAddress, Traders[currentId].traderDillValue);
 	}
 
-	function betLose(bytes32 myid) {
-		// Player loses
-		UP_totalBets++;
-		UP_winRate = UP_winBets * 100 / UP_totalBets;
-		UpPlayerResult("LOSE", Players[myid].playerAddress, Players[myid].queryResult1, Players[myid].queryResult2, now);
-		loser(Players[myid].playerAddress);
+	function dillLose(bytes32 currentId) {
+		totalDills++;
+		winRate = winBets * 100 / totalDills;
+		traderResult("LOSE", Traders[currentId].traderAddress, Traders[currentId].firstResultFromOraclize, Traders[currentId].secondResultFromOraclize, now);
+		loser(Traders[currentId].traderAddress);
 	}
 
-	function betBinomoWin(bytes32 myid) {
-		UP_etherWin = UP_etherWin + ((Players[myid].playerbetvalue * percentWin) / 100);
-		UpPlayerResult("WIN", Players[myid].playerAddress, Players[myid].queryResult1, Players[myid].queryResult2, now);
-		winnerReward(Players[myid].playerAddress, Players[myid].playerbetvalue);
-	}
-
-	function betBinomoLose(bytes32 myid) {
-		UpPlayerResult("LOSE", Players[myid].playerAddress, Players[myid].queryResult1, Players[myid].queryResult2, now);
-		loser(Players[myid].playerAddress);
-	}
-
-	function actionBinomo(string quoteBinomo, uint256 unixtimeBinomo, uint256 unixtimeExpireBinomo) payable {
-		if (msg.sender == owner) {
-			UpSuccess("Contract is funded", owner);
-		} else {
-			quote   	   = quoteBinomo;
-			unixtime 	   = unixtimeBinomo;
-			unixtimeExpire = unixtimeExpireBinomo;
-			createBetBinomo();
-		}
-	}
-
-    function winnerReward(address player, uint betvalue) payable {
-        uint winningAmount = (betvalue * (100 + percentWin)) / 100;
-        player.transfer(winningAmount);
-        UpStats(UP_totalBets, UP_etherWin, UP_winBets, UP_winRate);
+    function winnerReward(address trader, uint dillValue) payable {
+        uint winningAmount = (dillValue * (100 + percentWin)) / 100;
+        trader.transfer(winningAmount);
+        stats(totalDills, etherWin, winBets, winRate);
     }
 
-    function loser(address player) payable {
-        player.transfer(1);
-        UpStats(UP_totalBets, UP_etherWin, UP_winBets, UP_winRate);
+    function loser(address trader) payable {
+        trader.transfer(1);
+        stats(totalDills, etherWin, winBets, winRate);
     }
 
-  	/* Failsafe drain - owner can withdraw all the ether from the contract */
-	function drain()payable onlyOwner {
+	function drain() payable onlyOwner {
 		owner.transfer(this.balance);
 	}
 
 	function setMinBet(uint newMinBet) onlyOwner {
-	    min_bet = newMinBet;
+	    minDill = newMinBet;
 	}
 
 	function setMaxBet(uint newMaxBet) onlyOwner {
-	    max_bet = newMaxBet;
-	}
-
-	function setAddressUp(address newAddressUp) onlyOwner {
-	    addressUp = newAddressUp;
-	}
-
-	function setAddressDown(address newAddressDown) onlyOwner {
-	    addressDown = newAddressDown;
+	    maxDill = newMaxBet;
 	}
 
 	function setPercentWin(uint newPercentWin) onlyOwner {
 	    percentWin = newPercentWin;
 	}
 
-	// Below function will convert string to integer removing decimal
+	function setSecondsNextRequest(uint newSecondsNextRequest) onlyOwner {
+	    secondsNextRequest = newSecondsNextRequest;
+	}
+
 	function stringToUint(string s) returns (uint) {
 		bytes memory b = bytes(s);
 		uint i;
@@ -221,10 +195,8 @@ contract Binomo is usingOraclize
 		for (i = 0; i < b.length; i++) {
 		    uint c = uint(b[i]);
 		    if (c == 46) {
-		        // Do nothing --this will skip the decimal
 		    } else if (c >= 48 && c <= 57) {
 		        result1 = result1 * 10 + (c - 48);
-		      // usd_price = result;
 		    }
 		}
 
