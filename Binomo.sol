@@ -5,22 +5,20 @@ import "./Oraclize.sol";
 contract Binomo is usingOraclize
 {
 	event onError(string status, address indexed sender);
-	event onSuccess(string status, address indexed sender);
+	event onSuccess(string status, address indexed sender, uint amount);
 	event onFinishDeal(string status, address indexed sender, uint predictedValue, uint realValue);
 	event onChangeStatistics(uint totalDeals, uint totalWins, uint winRate, uint totalMoneyWon);
 
-	uint public minInvested = 10000000000000000; // weis (0.01 ETH)
-	uint public maxInvested = 50000000000000000; // weis (0.05 ETH)
-	uint public bonusPay = 10; // percent of initial investment
-	uint public nextRequestDelay = 60; // in seconds
+	uint public minAmount = 10000000000000000; // weis (0.01 ETH)
+	uint public maxAmount = 50000000000000000; // weis (0.05 ETH)
+	uint public defaultBonusPay = 10;  // bonus for autonomous deals
+	uint public defaultExpiration = 60; // expiration for autonomous deals (in seconds)
+	string public defaultAssetId = "ETHUSD";
 
-	// TODO: заменить на реальное значение кошелька, куда выводятся проигрыши
-	address brokerWallet = 0x8d06F9610C23Eb0bE6Eb3E3813f8497F4e8530b2;
-	
-	uint public totalDeals;
-	uint public totalMoneyWon;
-	uint public totalWins;
-	uint public winRate;
+	uint public totalDeals = 0;
+	uint public totalMoneyWon = 0;
+	uint public totalWins = 0;
+	uint public winRate = 0;
 
 	enum DealType { 
 		Unknown,	// unknown value
@@ -31,6 +29,7 @@ contract Binomo is usingOraclize
 	struct Deal {
 		address traderWallet;		// address of trader's wallet
 		uint amount;				// amount of tokens that trader has invested in deal
+		uint bonusPay;				// percent of initial investment
 		DealType dealType;			// type of deal: CALL / PUT
 		string assetId;				// asset id to use in request to oracle
 		bytes32 firstQueryId;		// id of 1st async query to oracle
@@ -55,19 +54,21 @@ contract Binomo is usingOraclize
 		createAutonomousDeal();
 	}
 
-	address owner;
+	address owner = 0;
+	address brokerWallet = 0; // by default, broker is owner of contract (can be changed by owner)
 
 	function Binomo() payable {
 		owner = msg.sender;
+		brokerWallet = msg.sender;
 	}
 
 	function createAutonomousDeal() payable {
 
-		if (msg.value > maxInvested || msg.value < minInvested) {
+		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Investment amount out of acceptable range", msg.sender);
 			// msg.sender.transfer(msg.value - 2000);
 		} else {
-			onSuccess("Payment received", msg.sender);
+			onSuccess("Payment received", msg.sender, msg.value);
 
 			string memory url = "json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD";
 			bytes32 queryId = oraclize_query("URL", url);
@@ -75,45 +76,47 @@ contract Binomo is usingOraclize
 			deals[queryId] = Deal({
 				traderWallet: msg.sender,
 				amount: msg.value,
+				bonusPay: defaultBonusPay,
 				dealType: DealType.Call, // TODO: придумать как задавать разные значения
-				assetId: "ETHUSD", // TODO: фиксированный торговый идентификатор актива (для урла)
+				assetId: defaultAssetId,
 				firstQueryId: queryId,
 				secondQueryId: bytes32(0),
 				firstQueryResult: 0,
 				secondQueryResult: 0,
-				dealTime: now, // using current time of node (WARN: can be manipulated be node owner)
+				dealTime: now, // current time of node (WARN: can be manipulated be node owner)
 				expirationTime: 0,
 				isAutonomous: true
 			});
 		}
 	}
 
-	function createDeal(string assetId, uint dealTypeInt, uint256 dealTime, uint256 expirationTime) ownerOnly payable {
+	function createDeal(string _assetId, uint _dealTypeInt, uint _bonusPay, uint256 _dealTime, uint256 _expirationTime) ownerOnly payable {
 
-		if (msg.value > maxInvested || msg.value < minInvested) {
+		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Investment amount out of acceptable range", msg.sender);
 			// msg.sender.transfer(amount - 2000);
 		} else {
 
-			DealType dealType = dealTypeUintToEnum(dealTypeInt);
+			onSuccess("Payment received", msg.sender, msg.value);
+
+			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
 
-			onSuccess("Payment received", msg.sender);
-
-			string memory url = strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(dealTime), ").ETH.USD");
+			string memory url = strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_dealTime), ").ETH.USD");
 			bytes32 queryId = oraclize_query("URL", url);
 
 			deals[queryId] = Deal({
 				traderWallet: msg.sender,
 				amount: msg.value,
+				bonusPay: _bonusPay,
 				dealType: dealType,
-				assetId: assetId,
+				assetId: _assetId,
 				firstQueryId: queryId,
 				secondQueryId: bytes32(0),
 				firstQueryResult: 0,
 				secondQueryResult: 0,
-				dealTime: dealTime,
-				expirationTime: expirationTime,
+				dealTime: _dealTime,
+				expirationTime: _expirationTime,
 				isAutonomous: false
 			});
 		}
@@ -122,70 +125,71 @@ contract Binomo is usingOraclize
 	function __callback(bytes32 queryId, string result) {
 
 		require(msg.sender == oraclize_cbAddress());
+		require(queryId != bytes32(0));
 
-		Deal memory currentDeal = deals[queryId];
+		Deal memory deal = deals[queryId];
 
-		if (currentDeal.firstQueryId == queryId && currentDeal.secondQueryId == 0) {
+		if (deal.firstQueryId == queryId && deal.secondQueryId == 0) {
 
 			string memory url;
 			bytes32 secondQueryId;
+			uint delay;
 
-			if (currentDeal.isAutonomous) {
+			if (deal.isAutonomous) {
+				delay = defaultExpiration;
 				url = "json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD";
-				secondQueryId = oraclize_query(nextRequestDelay, "URL", url);
 			} else {
-				uint delay = currentDeal.expirationTime - currentDeal.dealTime;
-				url = strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(currentDeal.expirationTime), ").ETH.USD");
-				secondQueryId = oraclize_query(delay, "URL", url);
+				delay = deal.expirationTime - deal.dealTime;
+				url = strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(deal.expirationTime), ").ETH.USD");
 			}
+			secondQueryId = oraclize_query(delay, "URL", url);
 
 			// create deal for 2nd request coping 1st one
 			deals[queryId] = Deal({
-				traderWallet: currentDeal.traderWallet,
-				amount: currentDeal.amount,
-				dealType: currentDeal.dealType,
-				assetId: currentDeal.assetId,
+				traderWallet: deal.traderWallet,
+				amount: deal.amount,
+				bonusPay: deal.bonusPay,
+				dealType: deal.dealType,
+				assetId: deal.assetId,
 				firstQueryId: bytes32(0),
 				secondQueryId: secondQueryId,
 				firstQueryResult: stringToUint(result),
 				secondQueryResult: 0,
-				dealTime: currentDeal.dealTime,
-				expirationTime: currentDeal.expirationTime,
-				isAutonomous: currentDeal.isAutonomous
+				dealTime: deal.dealTime,
+				expirationTime: deal.expirationTime,
+				isAutonomous: deal.isAutonomous
 			});
 
-		} else if (currentDeal.firstQueryId == 0 && currentDeal.secondQueryId == queryId) {
+		} else if (deal.firstQueryId == 0 && deal.secondQueryId == queryId) {
 
-			currentDeal.secondQueryResult = stringToUint(result);
+			deal.secondQueryResult = stringToUint(result);
 
-			if (currentDeal.firstQueryResult > currentDeal.secondQueryResult) {
-				if (DealType.Call == currentDeal.dealType) {
-					investmentFails(queryId);
-				} else if (DealType.Put == currentDeal.dealType) {
-					investmentSucceed(queryId);
+			if (deal.firstQueryResult > deal.secondQueryResult) {
+				if (DealType.Call == deal.dealType) {
+					investmentFails(deal);
+				} else if (DealType.Put == deal.dealType) {
+					investmentSucceed(deal);
 				}
-			} else if (currentDeal.firstQueryResult < currentDeal.secondQueryResult) {
-				if (DealType.Call == currentDeal.dealType) {
-					investmentSucceed(queryId);
-				} else if (DealType.Put == currentDeal.dealType) {
-					investmentFails(queryId);
+			} else if (deal.firstQueryResult < deal.secondQueryResult) {
+				if (DealType.Call == deal.dealType) {
+					investmentSucceed(deal);
+				} else if (DealType.Put == deal.dealType) {
+					investmentFails(deal);
 				}
-			} else if (currentDeal.firstQueryResult == currentDeal.secondQueryResult) {
+			} else if (deal.firstQueryResult == deal.secondQueryResult) {
 				// TODO: узнать у Паши, какое мин. отклонение от исходного значения считается "равенством"
-				investmentReturns(queryId);
+				investmentReturns(deal);
 			}
 		}
 	}
 
-	function investmentSucceed(bytes32 queryId) private {
-
-		Deal memory deal = deals[queryId];
+	function investmentSucceed(Deal deal) private {
 
 		totalDeals++;
 		totalWins++;
 		winRate = totalWins * 100 / totalDeals;
 		
-		uint amountWon = (deal.amount * (100 + bonusPay)) / 100;
+		uint amountWon = (deal.amount * (100 + deal.bonusPay)) / 100;
 		totalMoneyWon = totalMoneyWon + amountWon;
 		
 		deal.traderWallet.transfer(amountWon);
@@ -194,9 +198,7 @@ contract Binomo is usingOraclize
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
 
-	function investmentFails(bytes32 queryId) private {
-
-		Deal memory deal = deals[queryId];
+	function investmentFails(Deal deal) private {
 
 		totalDeals++;
 		winRate = totalWins * 100 / totalDeals;
@@ -208,9 +210,7 @@ contract Binomo is usingOraclize
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
 
-	function investmentReturns(bytes32 queryId) private {
-
-		Deal memory deal = deals[queryId];
+	function investmentReturns(Deal deal) private {
 
 		totalDeals++;
 		winRate = totalWins * 100 / totalDeals;
@@ -220,25 +220,25 @@ contract Binomo is usingOraclize
 		onFinishDeal("Investment returns", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
-/*
+
 	function drainBalance() payable ownerOnly {
-		owner.transfer(this.balance);
-	}
-*/
-	function setMinInvested(uint _value) ownerOnly {
-		minInvested = _value;
+		brokerWallet.transfer(this.balance);
 	}
 
-	function setMaxInvested(uint _value) ownerOnly {
-		maxInvested = _value;
+	function setMinAmount(uint _value) ownerOnly {
+		minAmount = _value;
 	}
 
-	function setBonusPay(uint _value) ownerOnly {
-		bonusPay = _value;
+	function setMaxAmount(uint _value) ownerOnly {
+		maxAmount = _value;
 	}
 
-	function setNextRequestDelay(uint _value) ownerOnly {
-		nextRequestDelay = _value;
+	function setDefaultBonusPay(uint _value) ownerOnly {
+		defaultBonusPay = _value;
+	}
+
+	function setDefaultExpiration(uint _value) ownerOnly {
+		defaultExpiration = _value;
 	}
 
 	function setBrokerWallet(address _value) ownerOnly {
