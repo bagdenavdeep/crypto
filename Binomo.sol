@@ -38,7 +38,7 @@ contract Binomo is usingOraclize
 		uint secondQueryResult;		// result of 2nd query
 		uint256 dealTime;			// time when trader made an investment (UNIXTIME)
 		uint256 expirationTime;		// expiration time (UNIXTIME)
-		bool isAutonomous;			// true, when deal was initiated by transferring tokens to the contract
+		uint256 duration;			// delay to 2nd request to oracle
 	}
 
 	mapping (bytes32 => Deal) deals;
@@ -70,6 +70,10 @@ contract Binomo is usingOraclize
 		} else {
 			onSuccess("Payment received", msg.sender, msg.value);
 
+			uint256 dealTime = now; // current time of node (WARN: can be manipulated be node owner)
+			uint256 expirationTime = dealTime + defaultExpiration;
+			string memory assetId = defaultAssetId;
+
 			string memory url = buildOracleURL(assetId, dealTime);
 			bytes32 queryId = oraclize_query("URL", url);
 
@@ -78,14 +82,14 @@ contract Binomo is usingOraclize
 				amount: msg.value,
 				bonusPay: defaultBonusPay,
 				dealType: DealType.Call, // TODO: придумать как задавать разные значения
-				assetId: defaultAssetId,
+				assetId: assetId,
 				firstQueryId: queryId,
 				secondQueryId: bytes32(0),
 				firstQueryResult: 0,
 				secondQueryResult: 0,
-				dealTime: now, // current time of node (WARN: can be manipulated be node owner)
-				expirationTime: 0,
-				isAutonomous: true
+				dealTime: dealTime, 
+				expirationTime: expirationTime,
+				duration: (expirationTime - dealTime)
 			});
 		}
 	}
@@ -102,6 +106,9 @@ contract Binomo is usingOraclize
 			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
 
+			require(_dealTime > 0);
+			require(_expirationTime > _dealTime);
+
 			string memory url = buildOracleURL(_assetId, _dealTime);
 			bytes32 queryId = oraclize_query("URL", url);
 
@@ -117,7 +124,7 @@ contract Binomo is usingOraclize
 				secondQueryResult: 0,
 				dealTime: _dealTime,
 				expirationTime: _expirationTime,
-				isAutonomous: false
+				duration: (_expirationTime - _dealTime)
 			});
 		}
 	}
@@ -154,7 +161,7 @@ contract Binomo is usingOraclize
 				secondQueryResult: 0,
 				dealTime: deal.dealTime,
 				expirationTime: deal.expirationTime,
-				isAutonomous: deal.isAutonomous
+				duration: deal.duration
 			});
 
 		} else if (deal.firstQueryId == 0 && deal.secondQueryId == queryId) {
@@ -187,7 +194,7 @@ contract Binomo is usingOraclize
 		winRate = totalWins * 100 / totalDeals;
 		
 		uint amountWon = (deal.amount * (100 + deal.bonusPay)) / 100;
-		totalMoneyWon = totalMoneyWon + amountWon;
+		totalMoneyWon += amountWon;
 		
 		deal.traderWallet.transfer(amountWon);
 
@@ -200,8 +207,10 @@ contract Binomo is usingOraclize
 		totalDeals++;
 		winRate = totalWins * 100 / totalDeals;
 
-		//deal.traderWallet.transfer(1); -- not sure we should transfer money on fail
+		// TODO: обсудить с Никитой: куда уходят деньги проигравшей сделки
+		// проблема: смарт-контракт не умеет делать переводы с чужого кошелька
 		brokerWallet.transfer(deal.amount);
+		//deal.traderWallet.transfer(1); -- not sure we should transfer money on fail
 
 		onFinishDeal("Investment fails", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
