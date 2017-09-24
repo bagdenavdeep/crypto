@@ -129,7 +129,7 @@ contract Binomo is usingOraclize
 		}
 	}
 
-	function buildOracleURL(string _assetId, uint256 _time) private returns(string) {
+	function buildOracleURL(string _assetId, uint256 _time) private constant returns(string) {
 		// TODO: use assetId in URL
 		_assetId = _assetId;
 		// TODO: use Binomo oracle
@@ -251,7 +251,7 @@ contract Binomo is usingOraclize
 		brokerWallet = _value;
 	}
 
-	function dealTypeUintToEnum(uint value) private returns(DealType) {
+	function dealTypeUintToEnum(uint value) private constant returns(DealType) {
 		if (value == 1) {
 			return DealType.Call;
 		} else if (value == 2) {
@@ -260,7 +260,7 @@ contract Binomo is usingOraclize
 		return DealType.Unknown;
 	}
 
-	function stringToUint(string s) private returns (uint) {
+	function stringToUint(string s) private constant returns (uint) {
 		bytes memory b = bytes(s);
 		uint i;
 		uint result1 = 0;
