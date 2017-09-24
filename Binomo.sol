@@ -70,7 +70,7 @@ contract Binomo is usingOraclize
 		} else {
 			onSuccess("Payment received", msg.sender, msg.value);
 
-			string memory url = "json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD";
+			string memory url = buildOracleURL(assetId, dealTime);
 			bytes32 queryId = oraclize_query("URL", url);
 
 			deals[queryId] = Deal({
@@ -102,7 +102,7 @@ contract Binomo is usingOraclize
 			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
 
-			string memory url = strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_dealTime), ").ETH.USD");
+			string memory url = buildOracleURL(_assetId, _dealTime);
 			bytes32 queryId = oraclize_query("URL", url);
 
 			deals[queryId] = Deal({
@@ -122,6 +122,13 @@ contract Binomo is usingOraclize
 		}
 	}
 
+	function buildOracleURL(string _assetId, uint256 _time) private returns(string) {
+		// TODO: use assetId in URL
+		_assetId = _assetId;
+		// TODO: use Binomo oracle
+		return strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_time), ").ETH.USD");
+	}
+
 	function __callback(bytes32 queryId, string result) {
 
 		require(msg.sender == oraclize_cbAddress());
@@ -131,18 +138,8 @@ contract Binomo is usingOraclize
 
 		if (deal.firstQueryId == queryId && deal.secondQueryId == 0) {
 
-			string memory url;
-			bytes32 secondQueryId;
-			uint delay;
-
-			if (deal.isAutonomous) {
-				delay = defaultExpiration;
-				url = "json(https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD).USD";
-			} else {
-				delay = deal.expirationTime - deal.dealTime;
-				url = strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(deal.expirationTime), ").ETH.USD");
-			}
-			secondQueryId = oraclize_query(delay, "URL", url);
+			string memory url = buildOracleURL(deal.assetId, deal.expirationTime);
+			bytes32 secondQueryId = oraclize_query(deal.duration, "URL", url);
 
 			// create deal for 2nd request coping 1st one
 			deals[queryId] = Deal({
