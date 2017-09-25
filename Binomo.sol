@@ -54,11 +54,9 @@ contract Binomo is usingOraclize
 	}
 
 	address owner = 0;
-	address brokerWallet = 0; // by default, broker is owner of contract (can be changed by owner)
 
 	function Binomo() payable {
 		owner = msg.sender;
-		brokerWallet = msg.sender;
 	}
 
 	function createAutonomousDeal() payable {
@@ -211,8 +209,7 @@ contract Binomo is usingOraclize
 		winRate = totalWins * 100 / totalDeals;
 
 		// TODO: обсудить с Никитой: куда уходят деньги проигравшей сделки
-		// проблема: смарт-контракт не умеет делать переводы с чужого кошелька
-		brokerWallet.transfer(deal.amount);
+		// сейчас проигравшие сделки остаются на балансе смарт-контракта
 		/*deal.traderWallet.transfer(1); //-- not sure we should transfer money on fail*/
 
 		onFinishDeal("Investment fails", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
@@ -230,8 +227,9 @@ contract Binomo is usingOraclize
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
 
-	function drainBalance() payable ownerOnly {
-		brokerWallet.transfer(this.balance);
+
+	function withdrawBalance() payable ownerOnly {
+		owner.transfer(this.balance);
 	}
 
 	function setMinAmount(uint _value) ownerOnly {
@@ -248,10 +246,6 @@ contract Binomo is usingOraclize
 
 	function setDefaultDuration(uint _value) ownerOnly {
 		defaultDuration = _value;
-	}
-
-	function setBrokerWallet(address _value) ownerOnly {
-		brokerWallet = _value;
 	}
 
 	function dealTypeUintToEnum(uint value) private constant returns(DealType) {
