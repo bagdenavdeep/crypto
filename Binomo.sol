@@ -131,9 +131,8 @@ contract Binomo is usingOraclize
 		}
 	}
 
-	function buildOracleURL(string _assetId, uint256 _time) private constant returns(string) {
+	function buildOracleURL(string /*_assetId*/, uint256 _time) private constant returns(string) {
 		// TODO: use assetId in URL
-		_assetId = _assetId;
 		// TODO: use Binomo oracle
 		return strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_time), ").ETH.USD");
 	}
