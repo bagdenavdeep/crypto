@@ -20,7 +20,7 @@ contract Binomo is usingOraclize
 	uint public totalWins = 0;
 	uint public winRate = 0;
 
-	enum DealType { 
+	enum DealType {
 		Unknown,	// unknown value
 		Call, 		// trader predics that price will increase (use '1' in API)
 		Put   		// trader predics that price will decrease (use '2' in API)
@@ -42,7 +42,6 @@ contract Binomo is usingOraclize
 	}
 
 	mapping (bytes32 => Deal) deals;
-	
 
 	modifier ownerOnly() {
 		require(msg.sender == owner);
@@ -64,6 +63,9 @@ contract Binomo is usingOraclize
 
 	function createAutonomousDeal() payable {
 
+		DealType dealType = dealTypeUintToEnum(getUintFromMsgData());
+		require(dealType != DealType.Unknown);
+
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Investment amount out of acceptable range", msg.sender);
 			// msg.sender.transfer(msg.value - 2000);
@@ -81,13 +83,13 @@ contract Binomo is usingOraclize
 				traderWallet: msg.sender,
 				amount: msg.value,
 				bonusPay: defaultBonusPay,
-				dealType: DealType.Call, // TODO: придумать как задавать разные значения
+				dealType: dealType,
 				assetId: assetId,
 				firstQueryId: queryId,
 				secondQueryId: bytes32(0),
 				firstQueryResult: 0,
 				secondQueryResult: 0,
-				dealTime: dealTime, 
+				dealTime: dealTime,
 				expirationTime: expirationTime,
 				duration: (expirationTime - dealTime)
 			});
@@ -143,6 +145,8 @@ contract Binomo is usingOraclize
 
 		Deal memory deal = deals[queryId];
 
+		require(deal.dealType != DealType.Unknown);
+
 		if (deal.firstQueryId == queryId && deal.secondQueryId == 0) {
 
 			string memory url = buildOracleURL(deal.assetId, deal.expirationTime);
@@ -192,10 +196,10 @@ contract Binomo is usingOraclize
 		totalDeals++;
 		totalWins++;
 		winRate = totalWins * 100 / totalDeals;
-		
+
 		uint amountWon = (deal.amount * (100 + deal.bonusPay)) / 100;
 		totalMoneyWon += amountWon;
-		
+
 		deal.traderWallet.transfer(amountWon);
 
 		onFinishDeal("Investment succeed", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
@@ -210,7 +214,7 @@ contract Binomo is usingOraclize
 		// TODO: обсудить с Никитой: куда уходят деньги проигравшей сделки
 		// проблема: смарт-контракт не умеет делать переводы с чужого кошелька
 		brokerWallet.transfer(deal.amount);
-		//deal.traderWallet.transfer(1); -- not sure we should transfer money on fail
+		/*deal.traderWallet.transfer(1); //-- not sure we should transfer money on fail*/
 
 		onFinishDeal("Investment fails", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
@@ -259,6 +263,15 @@ contract Binomo is usingOraclize
 		}
 		return DealType.Unknown;
 	}
+
+	function getUintFromMsgData() constant returns (uint) {
+        uint x = 0;
+        for (uint i = 0; i < 32; i++) {
+            uint b = uint(msg.data[35 - i]);
+            x += b * 256**i;
+        }
+        return x;
+    }
 
 	function stringToUint(string s) private constant returns (uint) {
 		bytes memory b = bytes(s);
