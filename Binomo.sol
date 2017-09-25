@@ -68,7 +68,12 @@ contract Binomo is usingOraclize
 			onError("Investment amount out of acceptable range", msg.sender);
 			// msg.sender.transfer(msg.value - 2000);
 		} else {
+
 			onSuccess("Payment received", msg.sender, msg.value);
+
+			uint predictedProfit = computeDealProfit(msg.value, defaultBonusPay);
+			require(this.balance > predictedProfit);
+			// TODO: make sure that balance is enough for all registered deals  
 
 			uint256 dealTime = now; // current time of node (WARN: can be manipulated be node owner)
 			uint256 expirationTime = dealTime + defaultDuration;
@@ -102,6 +107,10 @@ contract Binomo is usingOraclize
 		} else {
 
 			onSuccess("Payment received", _traderWallet, msg.value);
+
+			uint predictedProfit = computeDealProfit(msg.value, _bonusPay);
+			require(this.balance > predictedProfit);
+			// TODO: make sure that balance is enough for all registered deals  
 
 			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
@@ -194,7 +203,7 @@ contract Binomo is usingOraclize
 		totalWins++;
 		winRate = totalWins * 100 / totalDeals;
 
-		uint amountWon = (deal.amount * (100 + deal.bonusPay)) / 100;
+		uint amountWon = computeDealProfit(deal.amount, deal.bonusPay);
 		totalMoneyWon += amountWon;
 
 		deal.traderWallet.transfer(amountWon);
@@ -227,6 +236,9 @@ contract Binomo is usingOraclize
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
 
+	function computeDealProfit(uint amount, uint bonusPay) private constant returns (uint) {
+		return (amount * (100 + bonusPay)) / 100;
+	}
 
 	function withdrawBalance() payable ownerOnly {
 		owner.transfer(this.balance);
