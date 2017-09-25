@@ -11,8 +11,8 @@ contract Binomo is usingOraclize
 
 	uint public minAmount = 10000000000000000; // weis (0.01 ETH)
 	uint public maxAmount = 50000000000000000; // weis (0.05 ETH)
-	uint public defaultBonusPay = 10;  // bonus for autonomous deals
-	uint public defaultExpiration = 60; // expiration for autonomous deals (in seconds)
+	uint public defaultBonusPay = 10; // bonus for autonomous deals (percent of deal)
+	uint public defaultDuration = 60; // duration of autonomous deals (in seconds)
 	string public defaultAssetId = "ETHUSD";
 
 	uint public totalDeals = 0;
@@ -73,7 +73,7 @@ contract Binomo is usingOraclize
 			onSuccess("Payment received", msg.sender, msg.value);
 
 			uint256 dealTime = now; // current time of node (WARN: can be manipulated be node owner)
-			uint256 expirationTime = dealTime + defaultExpiration;
+			uint256 expirationTime = dealTime + defaultDuration;
 			string memory assetId = defaultAssetId;
 
 			string memory url = buildOracleURL(assetId, dealTime);
@@ -247,8 +247,8 @@ contract Binomo is usingOraclize
 		defaultBonusPay = _value;
 	}
 
-	function setDefaultExpiration(uint _value) ownerOnly {
-		defaultExpiration = _value;
+	function setDefaultDuration(uint _value) ownerOnly {
+		defaultDuration = _value;
 	}
 
 	function setBrokerWallet(address _value) ownerOnly {
