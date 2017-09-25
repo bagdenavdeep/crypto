@@ -9,8 +9,8 @@ contract Binomo is usingOraclize
 	event onFinishDeal(string status, address indexed sender, uint predictedValue, uint realValue);
 	event onChangeStatistics(uint totalDeals, uint totalWins, uint winRate, uint totalMoneyWon);
 
-	uint public minAmount = 10000000000000000; // weis (0.01 ETH)
-	uint public maxAmount = 50000000000000000; // weis (0.05 ETH)
+	uint public minAmount = 0.01 ether;
+	uint public maxAmount = 0.05 ether;
 	uint public defaultBonusPay = 10; // bonus for autonomous deals (percent of deal)
 	uint public defaultDuration = 60; // duration of autonomous deals (in seconds)
 	string public defaultAssetId = "ETHUSD";
