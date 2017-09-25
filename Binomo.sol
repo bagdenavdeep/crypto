@@ -96,14 +96,14 @@ contract Binomo is usingOraclize
 		}
 	}
 
-	function createDeal(string _assetId, uint _dealTypeInt, uint _bonusPay, uint256 _dealTime, uint256 _expirationTime) ownerOnly payable {
+	function createDeal(address _traderWallet, string _assetId, uint _dealTypeInt, uint _bonusPay, uint256 _dealTime, uint256 _expirationTime) ownerOnly payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
-			onError("Investment amount out of acceptable range", msg.sender);
+			onError("Investment amount out of acceptable range", _traderWallet);
 			// msg.sender.transfer(amount - 2000);
 		} else {
 
-			onSuccess("Payment received", msg.sender, msg.value);
+			onSuccess("Payment received", _traderWallet, msg.value);
 
 			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
@@ -115,7 +115,7 @@ contract Binomo is usingOraclize
 			bytes32 queryId = oraclize_query("URL", url);
 
 			deals[queryId] = Deal({
-				traderWallet: msg.sender,
+				traderWallet: _traderWallet,
 				amount: msg.value,
 				bonusPay: _bonusPay,
 				dealType: dealType,
