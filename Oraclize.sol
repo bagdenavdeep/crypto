@@ -59,7 +59,6 @@ contract usingOraclize {
     byte constant proofType_Ledger = 0x30;
     byte constant proofType_Native = 0xF0;
     byte constant proofStorage_IPFS = 0x01;
-    uint8 constant networkID_auto = 0;
     uint8 constant networkID_mainnet = 1;
     uint8 constant networkID_testnet = 2;
     uint8 constant networkID_morden = 2;
@@ -69,7 +68,7 @@ contract usingOraclize {
 
     OraclizeI oraclize;
     modifier oraclizeAPI {
-        if ((address(OAR)==0)||(getCodeSize(address(OAR))==0)) oraclize_setNetwork(networkID_auto);
+        if((address(OAR)==0)||(getCodeSize(address(OAR))==0)) oraclize_setNetwork();
         oraclize = OraclizeI(OAR.getAddress());
         _;
     }
@@ -79,8 +78,7 @@ contract usingOraclize {
         _;
     }
 
-    function oraclize_setNetwork(uint8 networkID) internal returns(bool){
-		networkID = 0;
+    function oraclize_setNetwork() internal returns(bool){
         if (getCodeSize(0x1d3B2638a7cC9f2CB3D298A3DA7a90B67E5506ed)>0){ //mainnet
             OAR = OraclizeAddrResolverI(0x1d3B2638a7cC9f2CB3D298A3DA7a90B67E5506ed);
             oraclize_setNetworkName("eth_mainnet");
@@ -119,8 +117,7 @@ contract usingOraclize {
     function __callback(bytes32 myid, string result) {
         __callback(myid, result, new bytes(0));
     }
-    function __callback(bytes32 myid, string result, bytes proof) {
-		__callback(myid, result, proof);
+    function __callback(bytes32 /*myid*/, string /*result*/, bytes /*proof*/) {
     }
 
     function oraclize_useCoupon(string code) oraclizeAPI internal {
@@ -761,7 +758,7 @@ contract usingOraclize {
     }
 
     function oraclize_newRandomDSQuery(uint _delay, uint _nbytes, uint _customGasLimit) internal returns (bytes32){
-        assert((_nbytes != 0) && (_nbytes < 32)); // Constrain values of _nbytes
+		assert((_nbytes != 0) && (_nbytes < 32)); // Constrain values of _nbytes
         bytes memory nbytes = new bytes(1);
         nbytes[0] = byte(_nbytes);
         bytes memory unonce = new bytes(32);
@@ -825,7 +822,7 @@ contract usingOraclize {
         copyBytes(proof, 3+1, 64, appkey1_pubkey, 0);
 
         bytes memory tosign2 = new bytes(1+65+32);
-        tosign2[0] = 1 + 0; //role
+        tosign2[0] = bytes1(1); //role
         copyBytes(proof, sig2offset-65, 65, tosign2, 1);
         bytes memory CODEHASH = hex"fd94fa71bc0ba10d39d464d0d8f465efeef0a2764e3887fcc9df41ded20f505c";
         copyBytes(CODEHASH, 0, 32, tosign2, 1+65);
@@ -854,9 +851,19 @@ contract usingOraclize {
         require((_proof[0] == "L") && (_proof[1] == "P") && (_proof[2] == 1));
 
         bool proofVerified = oraclize_randomDS_proofVerify__main(_proof, _queryId, bytes(_result), oraclize_getNetworkName());
-        require(proofVerified);
+		require(proofVerified);
 
         _;
+    }
+
+    function oraclize_randomDS_proofVerify__returnCode(bytes32 _queryId, string _result, bytes _proof) internal returns (uint8){
+        // Step 1: the prefix has to match 'LP\x01' (Ledger Proof version 1)
+        if ((_proof[0] != "L")||(_proof[1] != "P")||(_proof[2] != 1)) return 1;
+
+        bool proofVerified = oraclize_randomDS_proofVerify__main(_proof, _queryId, bytes(_result), oraclize_getNetworkName());
+        if (proofVerified == false) return 2;
+
+        return 0;
     }
 
     function matchBytes32Prefix(bytes32 content, bytes prefix) internal returns (bool){
@@ -923,8 +930,6 @@ contract usingOraclize {
     function copyBytes(bytes from, uint fromOffset, uint length, bytes to, uint toOffset) internal returns (bytes) {
         uint minLength = length + toOffset;
 
-		// Buffer too small
-		// Should be a better way?
 		require(to.length > minLength);
 
         // NOTE: the offset 32 is added to skip the `size` field of both bytes variables
