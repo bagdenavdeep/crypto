@@ -8,10 +8,13 @@ contract Binomo is usingOraclize
 	event onSuccess(string status, address indexed sender, uint amount);
 	event onFinishDeal(string status, address indexed sender, uint predictedValue, uint realValue);
 	event onChangeStatistics(uint totalDeals, uint totalWins, uint winRate, uint totalMoneyWon);
+	event onCallback(bytes32 queryId, string result);
+	event onBeforeCallback(string status, uint unixtime);
+	event onAfterCallback(string status, uint unixtime);
 
 	uint public minAmount = 0.01 ether;
 	uint public maxAmount = 0.05 ether;
-	uint public defaultBonusPay = 10; // bonus for autonomous deals (percent of deal)
+	uint public defaultProfit = 10; // profit for autonomous deals (percent of deal)
 	uint public defaultDuration = 60; // duration of autonomous deals (in seconds)
 	string public defaultAssetId = "ETHUSD";
 
@@ -29,7 +32,7 @@ contract Binomo is usingOraclize
 	struct Deal {
 		address traderWallet;		// address of trader's wallet
 		uint amount;				// amount of tokens that trader has invested in deal
-		uint bonusPay;				// percent of initial investment
+		uint profit;				// percent of initial investment
 		DealType dealType;			// type of deal: CALL / PUT
 		string assetId;				// asset id to use in request to oracle
 		bytes32 firstQueryId;		// id of 1st async query to oracle
@@ -61,9 +64,6 @@ contract Binomo is usingOraclize
 
 	function createAutonomousDeal() payable {
 
-		DealType dealType = dealTypeUintToEnum(getUintFromMsgData());
-		require(dealType != DealType.Unknown);
-
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Investment amount out of acceptable range", msg.sender);
 			// msg.sender.transfer(msg.value - 2000);
@@ -71,22 +71,25 @@ contract Binomo is usingOraclize
 
 			onSuccess("Payment received", msg.sender, msg.value);
 
-			uint predictedProfit = computeDealProfit(msg.value, defaultBonusPay);
-			require(this.balance > predictedProfit);
-			// TODO: make sure that balance is enough for all registered deals  
+			/*uint predictedProfit = computeDealProfit(msg.value, defaultProfit);*/
+			/*require(this.balance > predictedProfit);*/
+			// TODO: make sure that balance is enough for all registered deals
 
 			uint256 dealTime = now; // current time of node (WARN: can be manipulated be node owner)
 			uint256 expirationTime = dealTime + defaultDuration;
 			string memory assetId = defaultAssetId;
 
 			string memory url = buildOracleURL(assetId, dealTime);
+
+			onBeforeCallback("onBeforeCallback", now);
 			bytes32 queryId = oraclize_query("URL", url);
+			onAfterCallback("onAfterCallback", now);
 
 			deals[queryId] = Deal({
 				traderWallet: msg.sender,
 				amount: msg.value,
-				bonusPay: defaultBonusPay,
-				dealType: dealType,
+				profit: defaultProfit,
+				dealType: DealType.Call,
 				assetId: assetId,
 				firstQueryId: queryId,
 				secondQueryId: bytes32(0),
@@ -99,7 +102,7 @@ contract Binomo is usingOraclize
 		}
 	}
 
-	function createDeal(address _traderWallet, string _assetId, uint _dealTypeInt, uint _bonusPay, uint256 _dealTime, uint256 _expirationTime) ownerOnly payable {
+	function createDeal(address _traderWallet, string _assetId, uint _dealTypeInt, uint _profit, uint256 _dealTime, uint256 _expirationTime) ownerOnly payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Investment amount out of acceptable range", _traderWallet);
@@ -108,9 +111,9 @@ contract Binomo is usingOraclize
 
 			onSuccess("Payment received", _traderWallet, msg.value);
 
-			uint predictedProfit = computeDealProfit(msg.value, _bonusPay);
-			require(this.balance > predictedProfit);
-			// TODO: make sure that balance is enough for all registered deals  
+			/*uint predictedProfit = computeDealProfit(msg.value, _profit);*/
+			/*require(this.balance > predictedProfit);*/
+			// TODO: make sure that balance is enough for all registered deals
 
 			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
@@ -124,7 +127,7 @@ contract Binomo is usingOraclize
 			deals[queryId] = Deal({
 				traderWallet: _traderWallet,
 				amount: msg.value,
-				bonusPay: _bonusPay,
+				profit: _profit,
 				dealType: dealType,
 				assetId: _assetId,
 				firstQueryId: queryId,
@@ -146,6 +149,8 @@ contract Binomo is usingOraclize
 
 	function __callback(bytes32 queryId, string result) {
 
+		onCallback(queryId, result);
+
 		require(msg.sender == oraclize_cbAddress());
 		require(queryId != bytes32(0));
 
@@ -156,13 +161,14 @@ contract Binomo is usingOraclize
 		if (deal.firstQueryId == queryId && deal.secondQueryId == 0) {
 
 			string memory url = buildOracleURL(deal.assetId, deal.expirationTime);
+
 			bytes32 secondQueryId = oraclize_query(deal.duration, "URL", url);
 
 			// create deal for 2nd request coping 1st one
 			deals[queryId] = Deal({
 				traderWallet: deal.traderWallet,
 				amount: deal.amount,
-				bonusPay: deal.bonusPay,
+				profit: deal.profit,
 				dealType: deal.dealType,
 				assetId: deal.assetId,
 				firstQueryId: bytes32(0),
@@ -203,7 +209,7 @@ contract Binomo is usingOraclize
 		totalWins++;
 		winRate = totalWins * 100 / totalDeals;
 
-		uint amountWon = computeDealProfit(deal.amount, deal.bonusPay);
+		uint amountWon = computeDealProfit(deal.amount, deal.profit);
 		totalMoneyWon += amountWon;
 
 		deal.traderWallet.transfer(amountWon);
@@ -236,8 +242,8 @@ contract Binomo is usingOraclize
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
 
-	function computeDealProfit(uint amount, uint bonusPay) private constant returns (uint) {
-		return (amount * (100 + bonusPay)) / 100;
+	function computeDealProfit(uint amount, uint profit) private constant returns (uint) {
+		return (amount * (100 + profit)) / 100;
 	}
 
 	function withdrawBalance() payable ownerOnly {
@@ -252,8 +258,8 @@ contract Binomo is usingOraclize
 		maxAmount = _value;
 	}
 
-	function setDefaultBonusPay(uint _value) ownerOnly {
-		defaultBonusPay = _value;
+	function setDefaultProfit(uint _value) ownerOnly {
+		defaultProfit = _value;
 	}
 
 	function setDefaultDuration(uint _value) ownerOnly {
@@ -268,15 +274,6 @@ contract Binomo is usingOraclize
 		}
 		return DealType.Unknown;
 	}
-
-	function getUintFromMsgData() constant returns (uint) {
-        uint x = 0;
-        for (uint i = 0; i < 32; i++) {
-            uint b = uint(msg.data[35 - i]);
-            x += b * 256**i;
-        }
-        return x;
-    }
 
 	function stringToUint(string s) private constant returns (uint) {
 		bytes memory b = bytes(s);
