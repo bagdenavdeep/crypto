@@ -21,10 +21,9 @@ contract Binomo is usingOraclize
 	uint public totalWins = 0;
 	uint public winRate = 0;
 
-
-	uint public gasLimitFirstCallback  = 400000;
-	uint public gasLimitSecondCallback = 100000;
 	uint private gasPrice = 0.004 szabo;
+	uint private gasLimitFirstQuery  = 400000;
+	uint private gasLimitSecondQuery = 100000;
 
 	enum DealType {
 		Unknown,	// unknown value
@@ -42,9 +41,9 @@ contract Binomo is usingOraclize
 		bytes32 secondQueryId;		// id of 2nd async query to oracle
 		uint firstQueryResult;		// result of 1st query
 		uint secondQueryResult;		// result of 2nd query
-		uint256 dealTime;			// time when trader made an investment (UNIXTIME)
-		uint256 expirationTime;		// expiration time (UNIXTIME)
-		uint256 duration;			// delay to 2nd request to oracle
+		uint dealTime;				// time when trader made an investment (UNIXTIME)
+		uint expirationTime;		// expiration time (UNIXTIME)
+		uint duration;				// delay to 2nd request to oracle
 	}
 
 	mapping (bytes32 => Deal) deals;
@@ -68,7 +67,7 @@ contract Binomo is usingOraclize
 	function createAutonomousDeal() payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
-			onError("Investment amount out of acceptable range", msg.sender);
+			onError("Amount out of acceptable range", msg.sender);
 			// msg.sender.transfer(msg.value - 2000);
 		} else {
 
@@ -85,8 +84,7 @@ contract Binomo is usingOraclize
 			oraclize_setCustomGasPrice(gasPrice);
 
 			string memory url = buildOracleURL(assetId, dealTime);
-
-			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstCallback);
+			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstQuery);
 
 			deals[firstQueryId] = Deal({
 				traderWallet: msg.sender,
@@ -102,7 +100,6 @@ contract Binomo is usingOraclize
 				expirationTime: expirationTime,
 				duration: (expirationTime - dealTime)
 			});
-
 		}
 	}
 
@@ -128,7 +125,7 @@ contract Binomo is usingOraclize
 			oraclize_setCustomGasPrice(gasPrice);
 
 			string memory url = buildOracleURL(_assetId, _dealTime);
-			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstCallback);
+			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstQuery);
 
 			deals[firstQueryId] = Deal({
 				traderWallet: msg.sender,
@@ -144,7 +141,6 @@ contract Binomo is usingOraclize
 				expirationTime: _expirationTime,
 				duration: (_expirationTime - _dealTime)
 			});
-
 		}
 	}
 
@@ -168,8 +164,7 @@ contract Binomo is usingOraclize
 			deals[selfId].firstQueryResult = firstQueryResult;
 
 			string memory url = buildOracleURL(deal.assetId, deal.expirationTime);
-
-			bytes32 secondQueryId = oraclize_query(deal.duration, "URL", url, gasLimitSecondCallback);
+			bytes32 secondQueryId = oraclize_query(deal.duration, "URL", url, gasLimitSecondQuery);
 
 			// create deal for 2nd request coping 1st one
 			deals[secondQueryId] = Deal({
@@ -188,7 +183,6 @@ contract Binomo is usingOraclize
 			});
 
 			onCallback("onCallback first query", selfId, selfResult);
-
 		}
 		else if (deal.firstQueryId == 0 && deal.secondQueryId == selfId) {
 
@@ -209,12 +203,10 @@ contract Binomo is usingOraclize
 					investmentFails(deal);
 				}
 			} else if (deal.firstQueryResult == deal.secondQueryResult) {
-				// TODO: узнать у Паши, какое мин. отклонение от исходного значения считается "равенством"
 				investmentReturns(deal);
 			}
 
 			onCallback("onCallback second query", selfId, selfResult);
-
 		}
 	}
 
