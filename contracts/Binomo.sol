@@ -21,10 +21,10 @@ contract Binomo is usingOraclize
 	uint public totalWins = 0;
 	uint public winRate = 0;
 
-	uint public gasPrice = 4000000000 wei;
 
 	uint public gasLimitFirstCallback  = 400000;
 	uint public gasLimitSecondCallback = 100000;
+	uint private gasPrice = 0.004 szabo;
 
 	enum DealType {
 		Unknown,	// unknown value
