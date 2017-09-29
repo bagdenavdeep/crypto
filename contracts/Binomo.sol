@@ -8,7 +8,7 @@ contract Binomo is usingOraclize
 	event onSuccess(string status, address indexed sender, uint amount);
 	event onFinishDeal(string status, address indexed sender, uint predictedValue, uint realValue);
 	event onChangeStatistics(uint totalDeals, uint totalWins, uint winRate, uint totalMoneyWon);
-	event onCallback(bytes32 queryId, string result, uint resultInt);
+	event onCallback(string status, bytes32 queryId, string result);
 
 	uint public minAmount = 0.01 ether;
 	uint public maxAmount = 0.05 ether;
@@ -20,6 +20,11 @@ contract Binomo is usingOraclize
 	uint public totalMoneyWon = 0;
 	uint public totalWins = 0;
 	uint public winRate = 0;
+
+	uint public gasPrice = 4000000000 wei;
+
+	uint public gasLimitFirstCallback  = 400000;
+	uint public gasLimitSecondCallback = 100000;
 
 	enum DealType {
 		Unknown,	// unknown value
@@ -77,18 +82,20 @@ contract Binomo is usingOraclize
 			uint256 expirationTime = dealTime + defaultDuration;
 			string memory assetId = defaultAssetId;
 
+			oraclize_setCustomGasPrice(gasPrice);
+
 			string memory url = buildOracleURL(assetId, dealTime);
 
-			bytes32 queryId = oraclize_query("URL", url);
+			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstCallback);
 
-			deals[queryId] = Deal({
+			deals[firstQueryId] = Deal({
 				traderWallet: msg.sender,
 				amount: msg.value,
 				profit: defaultProfit,
 				dealType: DealType.Call,
 				assetId: assetId,
-				firstQueryId: queryId,
-				secondQueryId: bytes32(0),
+				firstQueryId: firstQueryId,
+				secondQueryId: 0,
 				firstQueryResult: 0,
 				secondQueryResult: 0,
 				dealTime: dealTime,
@@ -119,16 +126,16 @@ contract Binomo is usingOraclize
 			require(_expirationTime > _dealTime);
 
 			string memory url = buildOracleURL(_assetId, _dealTime);
-			bytes32 queryId = oraclize_query("URL", url);
+			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstCallback);
 
-			deals[queryId] = Deal({
+			deals[firstQueryId] = Deal({
 				traderWallet: _traderWallet,
 				amount: msg.value,
 				profit: _profit,
 				dealType: dealType,
 				assetId: _assetId,
-				firstQueryId: queryId,
-				secondQueryId: bytes32(0),
+				firstQueryId: firstQueryId,
+				secondQueryId: 0,
 				firstQueryResult: 0,
 				secondQueryResult: 0,
 				dealTime: _dealTime,
@@ -145,46 +152,47 @@ contract Binomo is usingOraclize
 		return strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_time), ").ETH.USD");
 	}
 
-	function __callback(bytes32 queryId, string result) {
+	function __callback(bytes32 selfId, string selfResult) {
 
-		/*require(msg.sender == oraclize_cbAddress());*/
-		/*require(queryId != bytes32(0));*/
+		require(selfId != bytes32(0));
+		require(msg.sender == oraclize_cbAddress());
 
-		Deal memory deal = deals[queryId];
+		Deal memory deal = deals[selfId];
+		require(deal.dealType != DealType.Unknown);
 
-		/*require(deal.dealType != DealType.Unknown);*/
+		if (deal.firstQueryId == selfId && deal.secondQueryId == 0) {
 
-		if (deal.firstQueryId == queryId && deal.secondQueryId == 0) {
+			/*deal.firstQueryResult = stringToUint(selfResult);
+			deal.firstQueryId = bytes32(0);*/
 
 			string memory url = buildOracleURL(deal.assetId, deal.expirationTime);
 
-			bytes32 secondQueryId = oraclize_query(deal.duration, "URL", url);
+			bytes32 secondQueryId = oraclize_query(deal.duration, "URL", url, gasLimitSecondCallback);
 
 			// create deal for 2nd request coping 1st one
-			/*deals[queryId] = Deal({
+			deals[secondQueryId] = Deal({
 				traderWallet: deal.traderWallet,
 				amount: deal.amount,
 				profit: deal.profit,
 				dealType: deal.dealType,
 				assetId: deal.assetId,
-				firstQueryId: bytes32(0),
+				firstQueryId: 0,
 				secondQueryId: secondQueryId,
-				firstQueryResult: stringToUint(result),
+				firstQueryResult: stringToUint(selfResult),
 				secondQueryResult: 0,
 				dealTime: deal.dealTime,
 				expirationTime: deal.expirationTime,
 				duration: deal.duration
-			});*/
+			});
 
-			onCallback(queryId, result, stringToUint(result));
+			onCallback("onCallback first query", selfId, selfResult);
 
 		}
-		else if (deal.firstQueryId == 0 && deal.secondQueryId == queryId) {
+		else if (deal.firstQueryId == 0 && deal.secondQueryId == selfId) {
 
-			/*deal.secondQueryResult = stringToUint(result);*/
-			/*deals[queryId].secondQueryResult = stringToUint(result);*/
+			deal.secondQueryResult = stringToUint(selfResult);
 
-			/*if (deal.firstQueryResult > deal.secondQueryResult) {
+			if (deal.firstQueryResult > deal.secondQueryResult) {
 				if (DealType.Call == deal.dealType) {
 					investmentFails(deal);
 				} else if (DealType.Put == deal.dealType) {
@@ -199,13 +207,11 @@ contract Binomo is usingOraclize
 			} else if (deal.firstQueryResult == deal.secondQueryResult) {
 				// TODO: узнать у Паши, какое мин. отклонение от исходного значения считается "равенством"
 				investmentReturns(deal);
-			}*/
+			}
 
-			onCallback(queryId, result, stringToUint(result));
+			onCallback("onCallback second query", selfId, selfResult);
 
 		}
-
-		onCallback(queryId, result, stringToUint(result));
 	}
 
 	function investmentSucceed(Deal deal) private {
@@ -217,7 +223,7 @@ contract Binomo is usingOraclize
 		uint amountWon = computeDealProfit(deal.amount, deal.profit);
 		totalMoneyWon += amountWon;
 
-		deal.traderWallet.transfer(amountWon);
+		/*deal.traderWallet.transfer(amountWon);*/
 
 		onFinishDeal("Investment succeed", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
@@ -241,7 +247,7 @@ contract Binomo is usingOraclize
 		totalDeals++;
 		winRate = totalWins * 100 / totalDeals;
 
-		deal.traderWallet.transfer(deal.amount);
+		/*deal.traderWallet.transfer(deal.amount);*/
 
 		onFinishDeal("Investment returns", deal.traderWallet, deal.firstQueryResult, deal.secondQueryResult);
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
