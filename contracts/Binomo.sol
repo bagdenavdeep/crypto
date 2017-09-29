@@ -162,8 +162,8 @@ contract Binomo is usingOraclize
 
 		if (deal.firstQueryId == selfId && deal.secondQueryId == 0) {
 
-			/*deal.firstQueryResult = stringToUint(selfResult);
-			deal.firstQueryId = bytes32(0);*/
+			uint firstQueryResult = stringToUint(selfResult);
+			deals[selfId].firstQueryResult = firstQueryResult;
 
 			string memory url = buildOracleURL(deal.assetId, deal.expirationTime);
 
@@ -178,7 +178,7 @@ contract Binomo is usingOraclize
 				assetId: deal.assetId,
 				firstQueryId: 0,
 				secondQueryId: secondQueryId,
-				firstQueryResult: stringToUint(selfResult),
+				firstQueryResult: firstQueryResult,
 				secondQueryResult: 0,
 				dealTime: deal.dealTime,
 				expirationTime: deal.expirationTime,
@@ -190,7 +190,9 @@ contract Binomo is usingOraclize
 		}
 		else if (deal.firstQueryId == 0 && deal.secondQueryId == selfId) {
 
-			deal.secondQueryResult = stringToUint(selfResult);
+			uint secondQueryResult = stringToUint(selfResult);
+			deal.secondQueryResult = secondQueryResult;
+			deals[selfId].secondQueryResult = secondQueryResult;
 
 			if (deal.firstQueryResult > deal.secondQueryResult) {
 				if (DealType.Call == deal.dealType) {
