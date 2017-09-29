@@ -125,6 +125,8 @@ contract Binomo is usingOraclize
 			require(_dealTime > 0);
 			require(_expirationTime > _dealTime);
 
+			oraclize_setCustomGasPrice(gasPrice);
+
 			string memory url = buildOracleURL(_assetId, _dealTime);
 			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstCallback);
 
