@@ -23,7 +23,9 @@ contract Binomo is usingOraclize
 
 	uint private gasPrice = 0.004 szabo;
 	uint private gasLimitFirstQuery  = 400000;
-	uint private gasLimitSecondQuery = 100000;
+	uint private gasLimitSecondQuery = 200000;
+
+	string private currentDealId;
 
 	enum DealType {
 		Unknown,	// unknown value
@@ -47,6 +49,7 @@ contract Binomo is usingOraclize
 	}
 
 	mapping (bytes32 => Deal) deals;
+	mapping (string => bytes32) dealsQuery;
 
 	modifier ownerOnly() {
 		require(msg.sender == owner);
@@ -103,7 +106,7 @@ contract Binomo is usingOraclize
 		}
 	}
 
-	function createDeal(string _assetId, uint _dealTypeInt, uint _profit, uint256 _dealTime, uint256 _expirationTime) payable {
+	function createDeal(string dealId, string _assetId, uint _dealTypeInt, uint _profit, uint256 _dealTime, uint256 _expirationTime) payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Amount out of acceptable range", msg.sender);
@@ -121,6 +124,8 @@ contract Binomo is usingOraclize
 
 			require(_dealTime > 0);
 			require(_expirationTime > _dealTime);
+
+			currentDealId = dealId;
 
 			oraclize_setCustomGasPrice(gasPrice);
 
@@ -144,7 +149,7 @@ contract Binomo is usingOraclize
 		}
 	}
 
-	function buildOracleURL(string /*_assetId*/, uint256 _time) private constant returns(string) {
+	function buildOracleURL(string /*_assetId*/, uint256 _time) private constant returns (string) {
 		// TODO: use assetId in URL
 		// TODO: use Binomo oracle
 		return strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_time), ").ETH.USD");
@@ -205,6 +210,8 @@ contract Binomo is usingOraclize
 			} else if (deal.firstQueryResult == deal.secondQueryResult) {
 				investmentReturns(deal);
 			}
+
+			dealsQuery[currentDealId] = selfId;
 
 			onCallback("onCallback second query", selfId, selfResult);
 		}
@@ -273,13 +280,22 @@ contract Binomo is usingOraclize
 		defaultDuration = _value;
 	}
 
-	function dealTypeUintToEnum(uint value) private constant returns(DealType) {
+	function dealTypeUintToEnum(uint value) private constant returns (DealType) {
 		if (value == 1) {
 			return DealType.Call;
 		} else if (value == 2) {
 			return DealType.Put;
 		}
 		return DealType.Unknown;
+	}
+
+	function isDealFinished(string dealId) ownerOnly returns(bool) {
+		if (dealsQuery[dealId] == 0) {
+			return false;
+		} else {
+			return true;
+		}
+
 	}
 
 	function stringToUint(string s) private constant returns (uint) {
