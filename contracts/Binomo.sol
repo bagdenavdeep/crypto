@@ -8,7 +8,7 @@ contract Binomo is usingOraclize
 	event onSuccess(string status, address indexed sender, uint amount);
 	event onFinishDeal(string status, address indexed sender, uint predictedValue, uint realValue);
 	event onChangeStatistics(uint totalDeals, uint totalWins, uint winRate, uint totalMoneyWon);
-	event onCallback(string status, bytes32 queryId, string result);
+	event onGetResult(string status, string result);
 
 	uint public minAmount = 0.01 ether;
 	uint public maxAmount = 0.05 ether;
@@ -226,7 +226,7 @@ contract Binomo is usingOraclize
 
 			dealIdentifiers[deal.dealId] = secondQueryId;
 			
-			onCallback("onCallback first query", selfId, selfResult);
+			onGetResult("Got first result", selfResult);
 		}
 		else if (deal.firstQueryId == 0 && deal.secondQueryId == selfId) {
 
@@ -250,7 +250,7 @@ contract Binomo is usingOraclize
 				investmentReturns(deal);
 			}
 
-			onCallback("onCallback second query", selfId, selfResult);
+			onGetResult("Got second result", selfResult);
 		}
 	}
 
