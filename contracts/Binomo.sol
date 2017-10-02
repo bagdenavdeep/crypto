@@ -25,7 +25,13 @@ contract Binomo is usingOraclize
 	uint private gasLimitFirstQuery  = 400000;
 	uint private gasLimitSecondQuery = 200000;
 
-	string private currentDealId;
+	enum DealStatus {
+		Finished,
+		WaitingFirstResult,
+		WaitingSecondResult,
+		Processing,
+		UnknownDealId
+	}
 
 	enum DealType {
 		Unknown,	// unknown value
@@ -34,6 +40,7 @@ contract Binomo is usingOraclize
 	}
 
 	struct Deal {
+		string dealId;
 		address traderWallet;		// address of trader's wallet
 		uint amount;				// amount of tokens that trader has invested in deal
 		uint profit;				// percent of initial investment
@@ -49,7 +56,7 @@ contract Binomo is usingOraclize
 	}
 
 	mapping (bytes32 => Deal) deals;
-	mapping (string => bytes32) dealsQuery;
+	mapping (string => bytes32) dealIdentifiers;
 
 	modifier ownerOnly() {
 		require(msg.sender == owner);
@@ -65,6 +72,27 @@ contract Binomo is usingOraclize
 
 	function Binomo() payable {
 		owner = msg.sender;
+	}
+
+	function getDealStatus(string dealId) ownerOnly constant returns(DealStatus) {
+
+		require(bytes(dealId).length > 0);
+
+		bytes32 queryId = dealIdentifiers[dealId];
+		if (bytes32(0) == queryId) {
+			return DealStatus.UnknownDealId;
+		}
+		Deal memory deal = deals[queryId];
+		if (bytes32(0) != deal.firstQueryId) {
+			return DealStatus.WaitingFirstResult;
+		}
+		if (bytes32(0) != deal.secondQueryId) {
+			if (0 == deal.secondQueryResult) {
+				return DealStatus.WaitingSecondResult;	
+			}
+			return DealStatus.Finished;
+		}
+		return DealStatus.Processing;
 	}
 
 	function createAutonomousDeal() payable {
@@ -89,7 +117,10 @@ contract Binomo is usingOraclize
 			string memory url = buildOracleURL(assetId, dealTime);
 			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstQuery);
 
+			string memory dealId = "fixed-deal-identifier";
+
 			deals[firstQueryId] = Deal({
+				dealId: dealId,
 				traderWallet: msg.sender,
 				amount: msg.value,
 				profit: defaultProfit,
@@ -103,10 +134,12 @@ contract Binomo is usingOraclize
 				expirationTime: expirationTime,
 				duration: (expirationTime - dealTime)
 			});
+
+			dealIdentifiers[dealId] = firstQueryId;
 		}
 	}
 
-	function createDeal(string dealId, string _assetId, uint _dealTypeInt, uint _profit, uint256 _dealTime, uint256 _expirationTime) payable {
+	function createDeal(string _dealId, string _assetId, uint _dealTypeInt, uint _profit, uint256 _dealTime, uint256 _expirationTime) payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Amount out of acceptable range", msg.sender);
@@ -119,13 +152,13 @@ contract Binomo is usingOraclize
 			/*require(this.balance > predictedProfit);*/
 			// TODO: make sure that balance is enough for all registered deals
 
+			require(bytes(_dealId).length > 0);
+
 			DealType dealType = dealTypeUintToEnum(_dealTypeInt);
 			require(dealType != DealType.Unknown);
 
 			require(_dealTime > 0);
 			require(_expirationTime > _dealTime);
-
-			currentDealId = dealId;
 
 			oraclize_setCustomGasPrice(gasPrice);
 
@@ -133,6 +166,7 @@ contract Binomo is usingOraclize
 			bytes32 firstQueryId = oraclize_query("URL", url, gasLimitFirstQuery);
 
 			deals[firstQueryId] = Deal({
+				dealId: _dealId,
 				traderWallet: msg.sender,
 				amount: msg.value,
 				profit: _profit,
@@ -146,6 +180,8 @@ contract Binomo is usingOraclize
 				expirationTime: _expirationTime,
 				duration: (_expirationTime - _dealTime)
 			});
+
+			dealIdentifiers[_dealId] = firstQueryId;
 		}
 	}
 
@@ -173,6 +209,7 @@ contract Binomo is usingOraclize
 
 			// create deal for 2nd request coping 1st one
 			deals[secondQueryId] = Deal({
+				dealId: deal.dealId,
 				traderWallet: deal.traderWallet,
 				amount: deal.amount,
 				profit: deal.profit,
@@ -187,6 +224,8 @@ contract Binomo is usingOraclize
 				duration: deal.duration
 			});
 
+			dealIdentifiers[deal.dealId] = secondQueryId;
+			
 			onCallback("onCallback first query", selfId, selfResult);
 		}
 		else if (deal.firstQueryId == 0 && deal.secondQueryId == selfId) {
@@ -210,8 +249,6 @@ contract Binomo is usingOraclize
 			} else if (deal.firstQueryResult == deal.secondQueryResult) {
 				investmentReturns(deal);
 			}
-
-			dealsQuery[currentDealId] = selfId;
 
 			onCallback("onCallback second query", selfId, selfResult);
 		}
@@ -287,15 +324,6 @@ contract Binomo is usingOraclize
 			return DealType.Put;
 		}
 		return DealType.Unknown;
-	}
-
-	function isDealFinished(string dealId) ownerOnly returns(bool) {
-		if (dealsQuery[dealId] == 0) {
-			return false;
-		} else {
-			return true;
-		}
-
 	}
 
 	function stringToUint(string s) private constant returns (uint) {
