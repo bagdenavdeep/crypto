@@ -326,27 +326,34 @@ contract Binomo is usingOraclize
 		return DealType.Unknown;
 	}
 
-	function stringToUint(string s) private constant returns (uint) {
+	function stringToUint(string s) constant returns (uint) {
 		bytes memory b = bytes(s);
-		uint i;
-		uint result1 = 0;
-		for (i = 0; i < b.length; i++) {
+		uint result = 0;
+		bool onFraction = false;
+		uint FractionMultiplier = 100; // fixed number of digits after comma (100 means 2 digits)
+		uint fractionMultiplier = FractionMultiplier;
+		for (uint i = 0; i < b.length; i++) {
 			uint c = uint(b[i]);
 			if (c == 46) {
-				// nop
+				onFraction = true;
+				result *= fractionMultiplier;
+				fractionMultiplier /= 10;
 			} else if (c >= 48 && c <= 57) {
-				result1 = result1 * 10 + (c - 48);
+				if (onFraction) {
+					result += (c - 48) * fractionMultiplier;
+					fractionMultiplier /= 10;
+				} else {
+					result *= 10;
+					result += (c - 48);
+				}
+			}
+			if (onFraction && 0 == fractionMultiplier) {
+				break; // fraction length limit is reached
 			}
 		}
-
-		if (result1 < 10000) {
-			result1 = result1 * 100;
-			return result1;
-		} else if (result1 < 100000) {
-			result1 = result1 * 10;
-			return result1;
-		} else {
-			return result1;
+		if (!onFraction) {
+			result *= FractionMultiplier;
 		}
+		return result;
 	}
 }
