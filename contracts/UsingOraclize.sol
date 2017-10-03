@@ -49,7 +49,7 @@ contract OraclizeI {
 contract OraclizeAddrResolverI {
     function getAddress() returns (address _addr);
 }
-contract usingOraclize {
+contract UsingOraclize {
     uint constant day = 60*60*24;
     uint constant week = 60*60*24*7;
     uint constant month = 60*60*24*30;

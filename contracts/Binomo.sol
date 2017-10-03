@@ -1,8 +1,8 @@
 pragma solidity ^0.4.0;
 
-import "./Oraclize.sol";
+import "./UsingOraclize.sol";
 
-contract Binomo is usingOraclize
+contract Binomo is UsingOraclize
 {
 	event onError(string status, address indexed sender);
 	event onSuccess(string status, address indexed sender, uint amount);
