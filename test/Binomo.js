@@ -2,20 +2,27 @@ var Binomo = artifacts.require("./Binomo.sol");
 
 contract('Binomo', function(accounts) {
 
+	const gasLimit = 4712388;
+	const iterations = [1, 2, 3];
+	const tx = {
+		value : web3.toWei(0.02, "ether"),
+		gas: gasLimit
+	};
+
 	it("testing stringToUint function", async () => {
 		let instance = await Binomo.deployed();
-		return await testStringToUint(instance)
+		return await testStringToUint(instance);
 	});
 
 	it("create autonomous test deal", async () => {
 		let instance = await Binomo.deployed();
-		return await testAutonomousDeal(instance)
-	})
+		return await testAutonomousDeal(instance);
+	});
 
 	it("create test deal", async () => {
 		let instance = await Binomo.deployed();
-		return await testDeal(instance)
-	})
+		return await testDeal(instance);
+	});
 
 	async function testStringToUint(instance) {
 
@@ -34,65 +41,112 @@ contract('Binomo', function(accounts) {
 			{ s: "1000.99", i: 1000*mul+99 },
 		];
 
-		for (var item in items) {
-			let value = await instance.stringToUint.call(item.s);
-			assert.equal(value10.valueOf(), item.i, "wrong")			
+		for (let item in items) {
+			let value = await instance.stringToUint.call(items[item].s);
+			assert.equal(value.valueOf(), items[item].i, "wrong")
 		}
 	}
 
 	async function testAutonomousDeal(instance) {
 
-		let tx = { 
-			from: accounts[1], 
-			to: instance.address, 
-			value: web3.toWei(0.02, "ether"), 
-			gas: 4712388 
-		};
-
-		let transactionHash = await web3.eth.sendTransaction(tx);
-
-		// checkTransactionReceipt(transactionHash);
-
-		// if (!await checkGasUsed(transactionHash)) {
-		// 	return;
-		// }
-
 		await checkEvents(instance, "testAutonomousDeal");
+
+		iterations.forEach(async (i) => {
+			await callAutonomousDeal(instance, i);
+		});
 
 	}
 
 	async function testDeal(instance) {
 
-		let dealId = "123";
-		let assetId = "ETHUSD";
-		let dealType = 1;
-		let profit = 10;
-		let dealTime = Math.floor(Date.now() / 1000);
-		let expirationTime = dealTime + 60;
+		await checkEvents(instance, "testDeal");
 
-		let tx = {
-			from: accounts[1], 
-			value : web3.toWei(0.02, "ether"), 
-			gas: 4712388
-		};
-
-		let transactionHash = await instance.createDeal.sendTransaction(dealId, assetId, dealType, profit, dealTime, expirationTime, tx);
-
-		// checkTransactionReceipt(transactionHash);
-
-		// if (!await checkGasUsed(transactionHash)) {
-		// 	return;
+		// for (var i in iterations) {
+		// 	await callCreateDeal(instance, iterations[i]);
 		// }
 
-		await checkEvents(instance, "testDeal");
+		iterations.forEach(async (i) => {
+			await callCreateDeal(instance, i);
+		});
+
+		// Array.prototype.forEachAsync = async function(callCreateDeal) {
+		//     for (let i of iterations) {
+		//         await callCreateDeal(instance, iterations[i]);
+		//     }
+		// }
+
+	}
+
+	async function callCreateDeal(instance, i) {
+
+		let dealId = (123 + parseInt(i)).toString();
+		let assetId = "ETHUSD";
+		let dealType = Math.floor(Math.random() * 2) + 1;
+		let profit = 10;
+		let dealTime = Math.floor(Date.now() / 1000) + i;
+		let expirationTime = dealTime + 60 + i;
+
+		tx['from'] = accounts[i];
+
+		let transactionHash = await instance.createDeal.sendTransaction(
+			dealId,
+			assetId,
+			dealType,
+			profit,
+			dealTime,
+			expirationTime,
+			tx
+		);
+
+		console.log(
+			"params",
+			" i:", i,
+			" dealId:", dealId,
+			" assetId:", assetId,
+			" dealType:", dealType,
+			" profit:", profit,
+			" dealTime:", dealTime,
+			" expirationTime:", expirationTime,
+			" tx:", tx
+		);
+
+		console.log("testDeal: sendTransaction" + i + ": ", " from: " + tx['from'], "transactionHash: " + transactionHash);
+		let transactionReceipt = await web3.eth.getTransactionReceipt(transactionHash);
+		console.log("gasUsed: ", transactionReceipt.gasUsed);
+		let estimateGas = await web3.eth.estimateGas({transactionHash});
+		console.log("estimateGas: ", estimateGas);
+
+	}
+
+	async function callAutonomousDeal(instance, i) {
+
+		tx['to'] = instance.address;
+		tx['from'] = accounts[i];
+		let transactionHash = await web3.eth.sendTransaction(tx);
+		console.log("testAutonomousDeal: sendTransaction" + i + ": ", " from: " + tx['from'], "transactionHash: " + transactionHash);
+		let transactionReceipt = web3.eth.getTransactionReceipt(transactionHash);
+		console.log("gasUsed: ", transactionReceipt.gasUsed);
+		let estimateGas = web3.eth.estimateGas({transactionHash});
+		console.log("estimateGas: ", estimateGas);
 
 	}
 
 	async function checkEvents(instance, action) {
 
-		let sender = web3.eth.accounts[1];
+		var eventOnError = instance.onError();
 
-		var eventOnSuccess = instance.onSuccess({sender: sender});
+		eventOnError.watch(function(error, result) {
+			if (error) {
+		        console.log(error);
+		        return;
+		    }
+			console.log(action + " onError");
+			console.log(result);
+			console.log("\n");
+			// eventOnError.stopWatching();
+		});
+
+		var eventOnSuccess = instance.onSuccess();
 
 		eventOnSuccess.watch(function(error, result) {
 			if (error) {
@@ -102,10 +156,10 @@ contract('Binomo', function(accounts) {
 			console.log(action + " onSuccess");
 			console.log(result);
 			console.log("\n");
-			eventOnSuccess.stopWatching();
+			// eventOnSuccess.stopWatching();
 		});
 
-		var eventOnGetResult = instance.onGetResult({sender: sender});
+		var eventOnGetResult = instance.onGetResult();
 
 		eventOnGetResult.watch(function(error, result) {
 			if (error) {
@@ -115,12 +169,12 @@ contract('Binomo', function(accounts) {
 			console.log(action + " onGetResult " + result.logIndex);
 			console.log(result);
 			console.log("\n");
-			if (result.logIndex > 1) {
-				eventOnGetResult.stopWatching();
-			}
+			// if (result.logIndex > 1) {
+			// 	eventOnGetResult.stopWatching();
+			// }
 		});
 
-		var eventOnFinishDeal = instance.onFinishDeal({sender: sender});
+		var eventOnFinishDeal = instance.onFinishDeal();
 
 		eventOnFinishDeal.watch(function(error, result) {
 			if (error) {
@@ -130,10 +184,10 @@ contract('Binomo', function(accounts) {
 			console.log(action + " onFinishDeal");
 			console.log(result);
 			console.log("\n");
-			eventOnFinishDeal.stopWatching();
+			// eventOnFinishDeal.stopWatching();
 		});
 
-		var eventOnChangeStatistics = instance.onChangeStatistics({sender: sender});
+		var eventOnChangeStatistics = instance.onChangeStatistics();
 
 		eventOnChangeStatistics.watch(function(error, result) {
 			if (error) {
@@ -143,46 +197,9 @@ contract('Binomo', function(accounts) {
 			console.log(action + " onChangeStatistics");
 			console.log(result);
 			console.log("\n");
-			eventOnChangeStatistics.stopWatching();
+			// eventOnChangeStatistics.stopWatching();
 		});
 
 	}
-
-	// async function checkGasUsed(transactionHash) {
-	//
-	// 	let transaction = await web3.eth.getTransaction(transactionHash);
-	// 	let transactionReceipt = await web3.eth.getTransactionReceipt(transactionHash);
-	//
-	// 	if (transactionReceipt == null) {
-	// 		return false;
-	// 	}
-	//
-	// 	if (transactionReceipt.gasUsed < transaction.gas) {
-	// 		console.log('    Out of gas');
-	// 		return false;
-	// 	}
-	//
-	// 	return true;
-	//
-	// }
-
-	// async function checkTransactionReceipt(transactionHash) {
-	//
-	// 	var countTransactionPending = web3.eth.getTransactionCount(web3.eth.accounts[1], "pending");
-	//
-	// 	if (parseInt(countTransactionPending) > 0) {
-	// 		setTimeout(function() {
-	// 			checkTransactionPending();
-	// 		}, 60000);
-	// 	}
-	//
-	// 	let transactionReceipt = web3.eth.getTransactionReceipt(transactionHash);
-	//
-	// 	if (transactionReceipt == null) {
-	// 		setTimeout(function(transactionHash) {
-	// 			checkTransactionReceipt(transactionHash);
-	// 		}, 60000);
-	// 	}
-	// }
 
 })
