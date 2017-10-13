@@ -201,6 +201,8 @@ contract Binomo is UsingOraclize
 
 		if (deal.firstQueryId == selfId && deal.secondQueryId == 0) {
 
+			onGetResult("Got first result", selfResult);
+
 			uint firstQueryResult = stringToUint(selfResult);
 			deals[selfId].firstQueryResult = firstQueryResult;
 
@@ -225,10 +227,11 @@ contract Binomo is UsingOraclize
 			});
 
 			dealIdentifiers[deal.dealId] = secondQueryId;
-			
-			onGetResult("Got first result", selfResult);
+
 		}
 		else if (deal.firstQueryId == 0 && deal.secondQueryId == selfId) {
+
+			onGetResult("Got second result", selfResult);
 
 			uint secondQueryResult = stringToUint(selfResult);
 			deal.secondQueryResult = secondQueryResult;
@@ -249,8 +252,6 @@ contract Binomo is UsingOraclize
 			} else if (deal.firstQueryResult == deal.secondQueryResult) {
 				investmentReturns(deal);
 			}
-
-			onGetResult("Got second result", selfResult);
 		}
 	}
 
