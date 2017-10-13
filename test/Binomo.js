@@ -49,31 +49,23 @@ contract('Binomo', function(accounts) {
 
 	async function testAutonomousDeal(instance) {
 
-		await checkEvents(instance, "testAutonomousDeal");
+		await checkEvents(instance);
 
-		iterations.forEach(async (i) => {
-			await callAutonomousDeal(instance, i);
-		});
+		for (let i in iterations) {
+			await callAutonomousDeal(instance, iterations[i]);
+			await delay(20);
+		}
 
 	}
 
 	async function testDeal(instance) {
 
-		await checkEvents(instance, "testDeal");
+		await checkEvents(instance);
 
-		// for (var i in iterations) {
-		// 	await callCreateDeal(instance, iterations[i]);
-		// }
-
-		iterations.forEach(async (i) => {
-			await callCreateDeal(instance, i);
-		});
-
-		// Array.prototype.forEachAsync = async function(callCreateDeal) {
-		//     for (let i of iterations) {
-		//         await callCreateDeal(instance, iterations[i]);
-		//     }
-		// }
+		for (let i in iterations) {
+			await callCreateDeal(instance, iterations[i]);
+			await delay(20);
+		}
 
 	}
 
@@ -111,10 +103,6 @@ contract('Binomo', function(accounts) {
 		);
 
 		console.log("testDeal: sendTransaction" + i + ": ", " from: " + tx['from'], "transactionHash: " + transactionHash);
-		let transactionReceipt = await web3.eth.getTransactionReceipt(transactionHash);
-		console.log("gasUsed: ", transactionReceipt.gasUsed);
-		let estimateGas = await web3.eth.estimateGas({transactionHash});
-		console.log("estimateGas: ", estimateGas);
 
 	}
 
@@ -124,82 +112,40 @@ contract('Binomo', function(accounts) {
 		tx['from'] = accounts[i];
 		let transactionHash = await web3.eth.sendTransaction(tx);
 		console.log("testAutonomousDeal: sendTransaction" + i + ": ", " from: " + tx['from'], "transactionHash: " + transactionHash);
-		let transactionReceipt = web3.eth.getTransactionReceipt(transactionHash);
-		console.log("gasUsed: ", transactionReceipt.gasUsed);
-		let estimateGas = web3.eth.estimateGas({transactionHash});
-		console.log("estimateGas: ", estimateGas);
 
 	}
 
-	async function checkEvents(instance, action) {
+	async function checkEvents(instance) {
 
-		var eventOnError = instance.onError();
+		let eventsCount = 0;
+		let watchedEventsCount = 5 * iterations.length;
+		console.log("watchedEventsCount: ", watchedEventsCount);
 
-		eventOnError.watch(function(error, result) {
+		let eventsHandler = instance.allEvents("onError", "onSuccess", "onGetResult", "onFinishDeal", "onChangeStatistics");
+		eventsHandler.watch(function(error, event) {
 			if (error) {
-		        console.log(error);
-		        return;
-		    }
-			console.log(action + " onError");
-			console.log(result);
+				console.log(error);
+				return;
+			}
+			eventsCount++;
+			console.log("eventsCount: ", eventsCount);
+			console.log(event);
+			logGas(event.transactionHash);
 			console.log("\n");
-			// eventOnError.stopWatching();
+			if (eventsCount == watchedEventsCount) {
+				eventsHandler.stopWatching();
+			}
 		});
 
-		var eventOnSuccess = instance.onSuccess();
+	}
 
-		eventOnSuccess.watch(function(error, result) {
-			if (error) {
-		        console.log(error);
-		        return;
-		    }
-			console.log(action + " onSuccess");
-			console.log(result);
-			console.log("\n");
-			// eventOnSuccess.stopWatching();
-		});
+	async function delay(ms) {
+	    return new Promise(function (resolve) { return setTimeout(resolve, ms); });
+	}
 
-		var eventOnGetResult = instance.onGetResult();
-
-		eventOnGetResult.watch(function(error, result) {
-			if (error) {
-		        console.log(error);
-		        return;
-		    }
-			console.log(action + " onGetResult " + result.logIndex);
-			console.log(result);
-			console.log("\n");
-			// if (result.logIndex > 1) {
-			// 	eventOnGetResult.stopWatching();
-			// }
-		});
-
-		var eventOnFinishDeal = instance.onFinishDeal();
-
-		eventOnFinishDeal.watch(function(error, result) {
-			if (error) {
-		        console.log(error);
-		        return;
-		    }
-			console.log(action + " onFinishDeal");
-			console.log(result);
-			console.log("\n");
-			// eventOnFinishDeal.stopWatching();
-		});
-
-		var eventOnChangeStatistics = instance.onChangeStatistics();
-
-		eventOnChangeStatistics.watch(function(error, result) {
-			if (error) {
-		        console.log(error);
-		        return;
-		    }
-			console.log(action + " onChangeStatistics");
-			console.log(result);
-			console.log("\n");
-			// eventOnChangeStatistics.stopWatching();
-		});
-
+	function logGas(transactionHash) {
+		let transactionReceipt = web3.eth.getTransactionReceipt(transactionHash);
+		console.log("gasUsed: ", transactionReceipt.gasUsed);
 	}
 
 })
