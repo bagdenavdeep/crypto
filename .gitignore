@@ -1,3 +1,7 @@
-build
-node_modules
 .DS_Store
+contracts/build
+contracts/node_modules
+contracts/.DS_Store
+microservice/.DS_Store
+microservice/node_modules
+microservice/package-lock.json

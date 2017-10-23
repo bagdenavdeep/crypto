@@ -1,0 +1,10 @@
+{
+	"pidFile": "microservice.pid",
+	"append": true,
+	"watch": true,
+	"script": "app.js",
+	"sourceDir": "/$HOME/crypto/microservice",
+	"logFile": "/var/log/microservice.log",
+	"outFile": "/var/log/microservice.out.log",
+	"errFile": "/var/log/microservice.error.log"
+}

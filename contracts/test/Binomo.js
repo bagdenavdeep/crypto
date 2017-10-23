@@ -9,15 +9,15 @@ contract('Binomo', function(accounts) {
 		gas: gasLimit
 	};
 
-	it("testing stringToUint function", async () => {
-		let instance = await Binomo.deployed();
-		return await testStringToUint(instance);
-	});
-
-	it("create autonomous test deal", async () => {
-		let instance = await Binomo.deployed();
-		return await testAutonomousDeal(instance);
-	});
+	// it("testing stringToUint function", async () => {
+	// 	let instance = await Binomo.deployed();
+	// 	return await testStringToUint(instance);
+	// });
+	//
+	// it("create autonomous test deal", async () => {
+	// 	let instance = await Binomo.deployed();
+	// 	return await testAutonomousDeal(instance);
+	// });
 
 	it("create test deal", async () => {
 		let instance = await Binomo.deployed();

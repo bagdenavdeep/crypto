@@ -95,7 +95,7 @@ $ truffle network
 ```
 
 ### Truffle test
-Запуск юнит-тестов (с указанием сети:)
+Запуск юнит-тестов (с указанием сети):
 ```
 $ truffle test --network rinkeby
 ```
