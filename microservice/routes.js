@@ -70,7 +70,7 @@ module.exports = function(app) {
 
 		try {
 			web3.eth.getBalance(req.query.address, function (error, result) {
-				res.send(getResponse(error, {'result': web3.utils.toWei(result, "ether")} ));
+				res.send(getResponse(error, {'result': web3.utils.fromWei(result, "ether")} ));
 			});
 		} catch(e) {
 			res.send(getResponse(e.message, null));
@@ -81,7 +81,7 @@ module.exports = function(app) {
 
 	var getDealStatus = 'getDealStatus';
 	app.get('/' + getDealStatus, [
-		check('dealId').exists().isLength({min: 1}).withMessage('Error: dealId must be an string')
+		check('dealId').exists().isLength({min: 1}).withMessage('Error: dealId must be a string')
 	], (req, res) => {
 
 		if (isValidationErrors(validationResult(req), res)) {
@@ -104,8 +104,8 @@ module.exports = function(app) {
 		check('address').exists().isLength({min: 1}).withMessage('Error: address doesn\'t exist'),
 		check('amount').exists().isLength({min: 1}).isFloat().withMessage('Error: amount doesn\'t exist or not float'),
 		check('dealId').exists().isLength({min: 1}).withMessage('Error: dealId doesn\'t exist'),
-		check('assetId').exists().isLength({min: 1}).isAlpha().withMessage('Error: assetId doesn\'t exist or not letters'),
-		check('dealType').exists().isLength({min: 1}).isInt({min: 0, max: 4}).withMessage('Error: dealType doesn\'t exist or not int'),
+		check('assetId').exists().isLength({min: 1}).withMessage('Error: assetId doesn\'t exist or not letters'),
+		check('dealType').exists().isLength({min: 1}).isInt({min: 0, max: 2}).withMessage('Error: dealType doesn\'t exist or not int'),
 		check('profit').exists().isLength({min: 1}).isInt({min: 0, max: 100}).withMessage('Error: profit doesn\'t exist or not int'),
 		check('dealTime').exists().isLength({min: 1}).isInt().withMessage('Error: dealTime doesn\'t exist or not int'),
 		check('exprirationTime').exists().isLength({min: 1}).isInt().withMessage('Error: exprirationTime doesn\'t exist or not int')
@@ -124,7 +124,7 @@ module.exports = function(app) {
 			let passphrase = '0x2538cc0060d79425486c599607c48906000d27fa0aed785798f5a4f52afabb9f';
 			// TODO get passphrase from DB
 
-			personal.unlockAccount(req.body.address, passphrase, 1, function (error, result) {
+			personal.unlockAccount(req.body.address, passphrase, config.get("unlockDuration"), function (error, result) {
 
 				if (!error) {
 
@@ -177,7 +177,7 @@ module.exports = function(app) {
 
 				if (!error) {
 					res.send(getResponse(error, {'result': result} ));
-					logger.info("createWallet " + result, passphrase);
+					logger.info("createWallet " + result);
 				} else {
 					res.send(getResponse(error, null));
 					logger.error("createWallet " + error);

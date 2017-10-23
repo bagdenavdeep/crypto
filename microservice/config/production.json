@@ -6,5 +6,6 @@
 	"web3Provider": "http://localhost:8545",
 	"port": 8000,
 	"gasPrice": 20000000000,
-	"gasLimit": 2000000
+	"gasLimit": 2000000,
+	"unlockDuration": 1
 }
