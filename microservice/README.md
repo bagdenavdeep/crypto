@@ -13,7 +13,7 @@ $ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/inst
 Доп. инф: https://brew.sh/
 
 ## NodeJS
-Установливаем nodejs
+Устанавливаем nodejs
 ```
 $ brew install node
 ```
@@ -26,6 +26,11 @@ $ npm install
 ```
 
 ### Forever
+Устанавливаем forever
+```
+$ npm install forever -g
+```
+
 Для демонизации app.js запускаем
 ```
 $ NODE_ENV=development forever start config/forever.json
