@@ -1,15 +1,64 @@
-var express    = require('express');
-var validator  = require('express-validator');
-var bodyParser = require('body-parser');
-var config 	   = require('config');
-var app        = express();
-var port   	   = config.get("port");
+'use strict';
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(validator());
+const cluster = require('cluster');
+const doThreads = require('os').cpus().length * 2;	// number of threads depends on CPUs
 
-require('./routes')(app);
+/* config */
+var config = require('config');
 
-app.listen(port, () => {
-	console.log('We are live on ' + port);
-});
+/* log4js */
+var log4js = require('log4js');
+
+/* microservice */
+var microService = require('./microservice');
+
+if (cluster.isMaster) {
+
+	var pid = process.pid.toString();
+	var logger = log4js.getLogger(pid);
+	logger.level = config.get("loggerLevel");
+
+	var watchdogTimer = false;
+
+	function respawn() {
+		cluster.fork();
+	}
+
+	function watchdog () {
+		if (Object.keys(cluster.workers).length < doThreads) {
+			logger.info("Watchdog respawn process");
+			respawn();
+		}
+	}
+
+	function messageHandler(w, msg) {
+
+		// reseive messages from workers/slaves
+		if (msg.cmd && msg.cmd === 'set') {}
+
+		if (msg.cmd && msg.cmd === 'get') {}
+
+	}
+
+	logger.info("Master start pid = " + process.pid);
+	cluster.on('message', messageHandler);
+	watchdogTimer = setInterval (watchdog, 400);	// recheck processes and respawn in as soon as they died
+
+} else {
+
+	var pid = process.pid.toString();
+	var logger = log4js.getLogger(pid);
+	logger.level = config.get("loggerLevel");
+	logger.info("Worker start pid = " + pid);
+
+	var API = new microService();
+	API.init(config, logger);
+
+	process.on('message', function (msg) {
+		// reseive messages from master
+		if (msg.cmd=='close') {
+			//API._processClose();
+		}
+	});
+
+}
