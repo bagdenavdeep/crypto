@@ -1,6 +1,6 @@
 {
   "name": "cryptobino",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "crypto module",
   "main": "app.js",
   "scripts": {
@@ -9,6 +9,7 @@
   "author": "Gleb Devyatkin",
   "license": "MIT",
   "dependencies": {
+    "clear-module": "^2.1.0",
     "ioredis": "^3.1.4",
     "restify": "^6.2.3",
     "restify-cors-middleware": "^1.0.1",

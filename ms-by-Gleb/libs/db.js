@@ -28,6 +28,15 @@ var kvdb = function () {
 
 	this.get = function (key, _callback) {
 		// get from Redis
+		global.log.info(this.logName,"[Redis] GET ["+key+"]");
+		this.db.get(key, function (_cb, err, value) { 
+			if (err){
+				_cb(false);
+			} else {
+				_cb(value );
+			}
+			}.bind(this, _callback) 
+		);
 	}
 
 	this.set = function (key, value, _callback) {

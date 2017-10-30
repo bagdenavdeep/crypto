@@ -13,7 +13,11 @@ var config = {
 		},
 		redis: {
 			// TODO config
-			prefix: "cb"
+			prefix: "cb",
+		},
+		contract: {
+			path: "./contracts/b.json",
+			address: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
 		}
 	},
 }

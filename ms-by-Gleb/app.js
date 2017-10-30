@@ -1,7 +1,7 @@
 "use strict";
 
 const cluster = require('cluster');
-const doThreads = require('os').cpus().length*2;	// number of threads depends on CPUs
+const doThreads = require('os').cpus().length;	// number of threads depends on CPUs
 
 
 const SimpleNodeLogger = require('simple-node-logger'),

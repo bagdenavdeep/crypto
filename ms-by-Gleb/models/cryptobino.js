@@ -2,6 +2,7 @@
 
 var Web3 = require('web3');
 var kvdb = require("../libs/db.js");
+var fs = require("fs");
 
 var restify = require('restify');
 var restifyErrors = require('restify-errors');
@@ -20,6 +21,7 @@ const cors = restifyCorsMiddleware({
 var cryptobinoAPI = function () {
 	this.config = false;
 	this.web3 = false;
+	this.contract = false;
 	this.db = false;
 	this.logName = "[CryptoBino] ";
 	
@@ -39,6 +41,9 @@ var cryptobinoAPI = function () {
 
 	this.initWeb3 = function () {
 		this.web3 = new Web3(new Web3.providers.HttpProvider(this.config.web3.provider.host));
+		// it;'s not clear do we need callback/wait, so may be bug will be there
+		var tmp = JSON.parse(fs.readFileSync(this.config.contract.path, 'utf8'));	// TODO try/catch or callback
+		this.contract = new this.web3.eth.Contract(tmp.abi, this.config.contract.address)
 	}
 
 	this.initAPIserver = function () {
@@ -61,7 +66,7 @@ var cryptobinoAPI = function () {
 				}
 			}
 		}));*/
-		//this.APIserver.use(restify.plugins.bodyParser());
+		this.APIserver.use(restify.plugins.bodyParser());
 		//this.APIserver.use(restify.plugins.authorizationParser());
 		this.APIserver.use(restify.plugins.queryParser());
 
@@ -73,11 +78,6 @@ var cryptobinoAPI = function () {
 			this.APItest(false, req, res, next) }.bind(this) 
 		);
 		
-		// TODO POST only
-		this.APIserver.get("/createWallet", function (req, res, next) { 
-				this.API_createWallet(req, res, next) ;
-			}.bind(this) 
-		);
 		this.APIserver.post("/createWallet", function (req, res, next) { 
 				this.API_createWallet(req, res, next) ;
 			}.bind(this) 
@@ -85,6 +85,16 @@ var cryptobinoAPI = function () {
 		
 		this.APIserver.get("/getBalance", function (req, res, next) { 
 				this.API_getBalance(req, res, next) ;
+			}.bind(this) 
+		);
+		
+		this.APIserver.post("/createDeal", function (req, res, next) { 
+				this.API_createDeal(req, res, next) ;
+			}.bind(this) 
+		);
+
+		this.APIserver.get("/getDealStatus", function (req, res, next) { 
+				this.API_getDealStatus(req, res, next) ;
 			}.bind(this) 
 		);
 
@@ -108,6 +118,51 @@ var cryptobinoAPI = function () {
 
 
 	// methods
+	this.API_createDeal = function (req, res, next) {
+		// CHECK echo "address=0xe0Ed3E4134E8157aA840bCA712F8e7C877d0D631&amount=309.97&dealId=123456789&assetId=ETHUSD&dealType=1&profit=50&dealTime=1506502239&exprirationTime=1506502359" | curl -d @-  http://127.0.0.1:8888/createDeal
+		// https://web3js.readthedocs.io/en/1.0/web3-eth-contract.html
+		// https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethcontract
+		// req.body.KEY
+		// TODO check incomming data!
+		//			??? _post.amount,
+		var _post=req.body;
+		this.contract.methods.createDeal(
+			_post.dealId,
+			_post.assetId,
+			_post.dealType,
+			_post.profit,
+			_post.dealTime,
+			_post.exprirationTime
+			).call({from: _post.address}, 
+				function (api_obj, err, result) {
+					if (err == null) {
+						console.log("RESULT", result);
+						this.send(api_obj.req,api_obj.res,this._APIsend(true, '',false),api_obj.next());
+					} else {
+						console.log("ERROR", err);
+						this.send(api_obj.req,api_obj.res,this._APIsend(false,false,{ code: 500, message: "method error" }),api_obj.next());
+					}
+				}.bind(this, { req: req, res: res, next: next })
+			);		
+	}
+
+	this.API_getDealStatus = function (req, res, next) {
+		// return error: Couldn't decode uint8 from ABI: 0x
+		this.contract.methods.getDealStatus(
+			req.query.dealId
+			).call({}, 
+				function (api_obj, err, result) {
+					if (err == null) {
+						console.log("RESULT", result);
+						this.send(api_obj.req,api_obj.res,this._APIsend(true, result,false),api_obj.next());
+					} else {
+						console.log("ERROR", err);
+						this.send(api_obj.req,api_obj.res,this._APIsend(false,false,{ code: 500, message: "method error" }),api_obj.next());
+					}
+				}.bind(this, { req: req, res: res, next: next })
+			);		
+	}
+	
 	this.API_getBalance = function (req, res, next) {
 		// https://web3js.readthedocs.io/en/1.0/web3-eth.html#getbalance
 		// TODO valid values
@@ -121,6 +176,7 @@ var cryptobinoAPI = function () {
 		);
 	}
 	this.API_createWallet = function (req, res, next) {
+		// TEST curl -d "" -X POST  http://127.0.0.1:8888/createWallet
 		// https://web3js.readthedocs.io/en/1.0/web3-eth-accounts.html#create
 		/*
 			{ 
