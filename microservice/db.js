@@ -18,15 +18,20 @@ var dbRedis = function () {
 
 		this.methods = new Redis(redisConfig);
 
-		if (this.methods.status == "connecting") {
-			this.status = true;
-			logger.info("Redis is connecting");
-		} else {
+		this.methods.on("error", function(error) {
 			logger.error("Redis is not connecting");
-		}
+			logger.error(error);
+			this.status = false;
+		}.bind(this));
+
+		this.methods.on("connect", function() {
+			logger.info("Redis is connecting");
+			this.status = true;
+		}.bind(this));
 
 	}
 
 }
 
 module.exports = dbRedis;
+	

@@ -16,7 +16,7 @@ if (cluster.isMaster) {
 
 	var pid = process.pid.toString();
 	var logger = log4js.getLogger(pid);
-	logger.level = config.get("loggerLevel");
+	logger.level = config.get('loggerLevel');
 
 	var watchdogTimer = false;
 
@@ -32,15 +32,12 @@ if (cluster.isMaster) {
 	}
 
 	function messageHandler(w, msg) {
-
 		// reseive messages from workers/slaves
-		if (msg.cmd && msg.cmd === 'set') {}
-
-		if (msg.cmd && msg.cmd === 'get') {}
-
+		if (msg.cmd && msg.cmd === "set") {}
+		if (msg.cmd && msg.cmd === "get") {}
 	}
 
-	logger.info("Master start pid = " + process.pid);
+	logger.info("Master start pid = %s", process.pid);
 	cluster.on('message', messageHandler);
 	watchdogTimer = setInterval (watchdog, 400);	// recheck processes and respawn in as soon as they died
 
@@ -49,14 +46,14 @@ if (cluster.isMaster) {
 	var pid = process.pid.toString();
 	var logger = log4js.getLogger(pid);
 	logger.level = config.get("loggerLevel");
-	logger.info("Worker start pid = " + pid);
+	logger.info("Worker start pid = %s", pid);
 
 	var API = new microService();
 	API.init(config, logger);
 
-	process.on('message', function (msg) {
+	process.on("message", function (msg) {
 		// reseive messages from master
-		if (msg.cmd=='close') {
+		if (msg.cmd == "close") {
 			//API._processClose();
 		}
 	});
