@@ -63,18 +63,18 @@ contract Binomo is UsingOraclize
 		_;
 	}
 
-	function () payable {
+	function () public payable {
 		require(msg.sender != owner);
 		createAutonomousDeal();
 	}
 
 	address owner = 0;
 
-	function Binomo() payable {
+	function Binomo() public payable {
 		owner = msg.sender;
 	}
 
-	function getDealStatus(string dealId) ownerOnly constant returns(DealStatus) {
+	function getDealStatus(string dealId) public ownerOnly constant returns(DealStatus) {
 
 		require(bytes(dealId).length > 0);
 
@@ -95,7 +95,7 @@ contract Binomo is UsingOraclize
 		return DealStatus.Processing;
 	}
 
-	function createAutonomousDeal() payable {
+	function createAutonomousDeal() public payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Amount out of acceptable range", msg.sender);
@@ -139,7 +139,7 @@ contract Binomo is UsingOraclize
 		}
 	}
 
-	function createDeal(string _id, string _asset, uint _trend, uint _paymentRate, uint256 _createdAt, uint256 _finishedAt) payable {
+	function createDeal(string _id, string _asset, uint _trend, uint _paymentRate, uint256 _createdAt, uint256 _finishedAt) public payable {
 
 		if (msg.value > maxAmount || msg.value < minAmount) {
 			onError("Amount out of acceptable range", msg.sender);
@@ -185,13 +185,13 @@ contract Binomo is UsingOraclize
 		}
 	}
 
-	function buildOracleURL(string /*_asset*/, uint256 _time) private constant returns (string) {
+	function buildOracleURL(string /*_asset*/, uint256 _time) private returns (string) {
 		// TODO: use asset in URL
 		// TODO: use Binomo oracle
 		return strConcat("json(https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=", uint2str(_time), ").ETH.USD");
 	}
 
-	function __callback(bytes32 selfId, string selfResult) {
+	function __callback(bytes32 selfId, string selfResult) public {
 
 		require(selfId != bytes32(0));
 		require(msg.sender == oraclize_cbAddress());
@@ -294,31 +294,31 @@ contract Binomo is UsingOraclize
 		onChangeStatistics(totalDeals, totalWins, winRate, totalMoneyWon);
 	}
 
-	function computeDealPaymentRate(uint amount, uint paymentRate) private constant returns (uint) {
+	function computeDealPaymentRate(uint amount, uint paymentRate) private pure returns (uint) {
 		return (amount * (100 + paymentRate)) / 100;
 	}
 
-	function withdrawBalance() payable ownerOnly {
+	function withdrawBalance() public payable ownerOnly {
 		owner.transfer(this.balance);
 	}
 
-	function setMinAmount(uint _value) ownerOnly {
+	function setMinAmount(uint _value) public ownerOnly {
 		minAmount = _value;
 	}
 
-	function setMaxAmount(uint _value) ownerOnly {
+	function setMaxAmount(uint _value) public ownerOnly {
 		maxAmount = _value;
 	}
 
-	function setDefaultPaymentRate(uint _value) ownerOnly {
+	function setDefaultPaymentRate(uint _value) public ownerOnly {
 		defaultPaymentRate = _value;
 	}
 
-	function setDefaultDuration(uint _value) ownerOnly {
+	function setDefaultDuration(uint _value) public ownerOnly {
 		defaultDuration = _value;
 	}
 
-	function trendUintToEnum(uint value) private constant returns (Trend) {
+	function trendUintToEnum(uint value) private pure returns (Trend) {
 		if (value == 1) {
 			return Trend.Call;
 		} else if (value == 2) {
@@ -327,7 +327,7 @@ contract Binomo is UsingOraclize
 		return Trend.Unknown;
 	}
 
-	function stringToUint(string s) constant returns (uint) {
+	function stringToUint(string s) public pure returns (uint) {
 		bytes memory b = bytes(s);
 		uint result = 0;
 		bool onFraction = false;
