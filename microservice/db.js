@@ -19,8 +19,7 @@ var dbRedis = function () {
 		this.methods = new Redis(redisConfig);
 
 		this.methods.on("error", function(error) {
-			logger.error("Redis is not connecting");
-			logger.error(error);
+			logger.error("Redis is not connecting", error);
 			this.status = false;
 		}.bind(this));
 
@@ -34,4 +33,3 @@ var dbRedis = function () {
 }
 
 module.exports = dbRedis;
-	

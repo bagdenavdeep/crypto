@@ -69,6 +69,7 @@ var microService = function () {
 		if (!isAddress) {
 			res.send(this.getResponse("Error: invalid address", null));
 		}
+
 		return isAddress;
 	}
 
@@ -125,6 +126,7 @@ var microService = function () {
 			}
 
 			try {
+
 				this.web3.eth.getBalance(req.query.address, function (error, result) {
 
 					if (error) {
@@ -135,6 +137,7 @@ var microService = function () {
 					res.send(this.getResponse(error, {'result': this.web3.utils.fromWei(result, 'ether')} ));
 
 				}.bind(this));
+
 			} catch(e) {
 				this.sendResponseError(e.message, res, req);
 			}
@@ -150,6 +153,7 @@ var microService = function () {
 			}
 
 			try {
+
 				this.contract.methods.getDealStatus(req.query.id).call({from: this.config.get('contractOwner')}, function(error, result) {
 
 					if (error) {
@@ -160,6 +164,7 @@ var microService = function () {
 					res.send(this.getResponse(error, {'result': result } ));
 
 				}.bind(this));
+
 			} catch(e) {
 				this.sendResponseError(e.message, res, req);
 			}
@@ -215,7 +220,8 @@ var microService = function () {
 									req.body.trend,
 									req.body.payment_rate,
 									req.body.created_at,
-									req.body.finished_at)
+									req.body.finished_at
+								)
 								.send(transaction)
 								.on('transactionHash', function(hash) {
 									res.send(this.getResponse(error, hash));
@@ -260,7 +266,6 @@ var microService = function () {
 							if (hsetResult) {
 								this.logger.info("%s redis hset addresses %s", req.route.path, result);
 								res.send(this.getResponse(error, {'result': result} ));
-								this.logger.info(req.route.path, result);
 							} else {
 								this.sendResponseError(hsetError, res, req);
 							}

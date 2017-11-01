@@ -20,26 +20,15 @@ if (cluster.isMaster) {
 
 	var watchdogTimer = false;
 
-	function respawn() {
-		cluster.fork();
-	}
-
-	function watchdog () {
+	function watchdog() {
 		if (Object.keys(cluster.workers).length < doThreads) {
-			logger.info("Watchdog respawn process");
-			respawn();
+			cluster.fork();
+			logger.info("Watchdog fork process");
 		}
 	}
 
-	function messageHandler(w, msg) {
-		// reseive messages from workers/slaves
-		if (msg.cmd && msg.cmd === "set") {}
-		if (msg.cmd && msg.cmd === "get") {}
-	}
-
 	logger.info("Master start pid = %s", process.pid);
-	cluster.on('message', messageHandler);
-	watchdogTimer = setInterval (watchdog, 400);	// recheck processes and respawn in as soon as they died
+	watchdogTimer = setInterval(watchdog, 400);	// recheck processes and respawn in as soon as they died
 
 } else {
 
@@ -51,11 +40,8 @@ if (cluster.isMaster) {
 	var API = new microService();
 	API.init(config, logger);
 
-	process.on("message", function (msg) {
-		// reseive messages from master
-		if (msg.cmd == "close") {
-			//API._processClose();
-		}
+	process.on("error", function(error) {
+		logger.error(error);
 	});
 
 }
