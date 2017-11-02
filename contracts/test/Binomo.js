@@ -9,15 +9,15 @@ contract('Binomo', function(accounts) {
 		gas: gasLimit
 	};
 
-	// it("testing stringToUint function", async () => {
-	// 	let instance = await Binomo.deployed();
-	// 	return await testStringToUint(instance);
-	// });
-	//
-	// it("create autonomous test deal", async () => {
-	// 	let instance = await Binomo.deployed();
-	// 	return await testAutonomousDeal(instance);
-	// });
+	it("testing stringToUint function", async () => {
+		let instance = await Binomo.deployed();
+		return await testStringToUint(instance);
+	});
+
+	it("create autonomous test deal", async () => {
+		let instance = await Binomo.deployed();
+		return await testAutonomousDeal(instance);
+	});
 
 	it("create test deal", async () => {
 		let instance = await Binomo.deployed();
@@ -71,34 +71,34 @@ contract('Binomo', function(accounts) {
 
 	async function callCreateDeal(instance, i) {
 
-		let dealId = (123 + parseInt(i)).toString();
-		let assetId = "ETHUSD";
-		let dealType = Math.floor(Math.random() * 2) + 1;
-		let profit = 10;
-		let dealTime = Math.floor(Date.now() / 1000) + i;
-		let expirationTime = dealTime + 60 + i;
+		let id = (123 + parseInt(i)).toString();
+		let asset = "ETHUSD";
+		let trend = Math.floor(Math.random() * 2) + 1;
+		let paymentRate = 10;
+		let createdAt = Math.floor(Date.now() / 1000) + i;
+		let finishedAt = createdAt + 60 + i;
 
 		tx['from'] = accounts[i];
 
 		let transactionHash = await instance.createDeal.sendTransaction(
-			dealId,
-			assetId,
-			dealType,
-			profit,
-			dealTime,
-			expirationTime,
+			id,
+			asset,
+			trend,
+			paymentRate,
+			createdAt,
+			finishedAt,
 			tx
 		);
 
 		console.log(
 			"params",
 			" i:", i,
-			" dealId:", dealId,
-			" assetId:", assetId,
-			" dealType:", dealType,
-			" profit:", profit,
-			" dealTime:", dealTime,
-			" expirationTime:", expirationTime,
+			" id:", id,
+			" asset:", asset,
+			" trend:", trend,
+			" paymentRate:", paymentRate,
+			" createdAt:", createdAt,
+			" finishedAt:", finishedAt,
 			" tx:", tx
 		);
 
