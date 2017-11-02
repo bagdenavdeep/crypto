@@ -36,13 +36,13 @@ var microService = function () {
 		this.initAPI();
 	}
 
-	this.getResponse = function(error, result) {
+	this.getResponse = function(error, result, code) {
 
 		let response = { success: false };
 
 		if (error) {
 			response['error'] = {
-				'code': 0,
+				'code': code,
 				'message': error
 			}
 		} else {
@@ -53,9 +53,9 @@ var microService = function () {
 		return response;
 	}
 
-	this.sendResponseError = function(error, res, req) {
-		res.send(this.getResponse(error, null));
-		this.logger.error(req.route.path, error);
+	this.sendResponseError = function(error, code, res, req) {
+		res.send(this.getResponse(error, null, code));
+		this.logger.error(req.route ? req.route.path : "Middleware:", error);
 	}
 
 	this.getLastErrorMessage = function(errors) {
@@ -67,7 +67,7 @@ var microService = function () {
 		let isAddress = this.web3.utils.isAddress(address);
 
 		if (!isAddress) {
-			res.send(this.getResponse("Error: invalid address", null));
+			res.send(this.getResponse("Error: invalid address", null, 0));
 		}
 
 		return isAddress;
@@ -76,7 +76,7 @@ var microService = function () {
 	this.isValidationErrors = function(errors, res) {
 
 		if (!errors.isEmpty()) {
-			res.send(this.getResponse(this.getLastErrorMessage(errors.array()), null));
+			res.send(this.getResponse(this.getLastErrorMessage(errors.array()), null, 0));
 			return true;
 		}
 
@@ -112,6 +112,19 @@ var microService = function () {
 		this.API.use(bodyParser.urlencoded({ extended: true }));
 		this.API.use(validator());
 
+		this.API.use(function (req, res, next) {
+
+			this.web3.eth.getProtocolVersion()
+			.then(function (result) {
+				next();
+				return null;
+			})
+			.catch(function(e) {
+				this.sendResponseError("Ethereum node not connected", 501, res, req);
+			}.bind(this));
+
+		}.bind(this));
+
 		this.API.listen(port, function () {
 			this.logger.info("API listen on %s", port);
 		}.bind(this));
@@ -130,16 +143,16 @@ var microService = function () {
 				this.web3.eth.getBalance(req.query.address, function (error, result) {
 
 					if (error) {
-						this.sendResponseError(error, res, req);
+						this.sendResponseError(error, 0, res, req);
 						return;
 					}
 
-					res.send(this.getResponse(error, {'result': this.web3.utils.fromWei(result, 'ether')} ));
+					res.send(this.getResponse(error, {'result': this.web3.utils.fromWei(result, 'ether')}, 0));
 
 				}.bind(this));
 
 			} catch(e) {
-				this.sendResponseError(e.message, res, req);
+				this.sendResponseError(e.message, 0, res, req);
 			}
 
 		});
@@ -157,16 +170,16 @@ var microService = function () {
 				this.contract.methods.getDealStatus(req.query.id).call({from: this.config.get('contractOwner')}, function(error, result) {
 
 					if (error) {
-						this.sendResponseError(error, res, req);
+						this.sendResponseError(error, 0, res, req);
 						return;
 					}
 
-					res.send(this.getResponse(error, {'result': result } ));
+					res.send(this.getResponse(error, {'result': result }, 0));
 
 				}.bind(this));
 
 			} catch(e) {
-				this.sendResponseError(e.message, res, req);
+				this.sendResponseError(e.message, 0, res, req);
 			}
 
 		});
@@ -193,7 +206,7 @@ var microService = function () {
 			try {
 
             	if (!this.db.status) {
-					this.sendResponseError("Error: redis is not connecting", res, req);
+					this.sendResponseError("Error: redis is not connecting", 0, res, req);
 					return;
 				}
 
@@ -224,26 +237,26 @@ var microService = function () {
 								)
 								.send(transaction)
 								.on('transactionHash', function(hash) {
-									res.send(this.getResponse(error, hash));
+									res.send(this.getResponse(error, hash, 0));
 									this.logger.info(req.route.path, hash);
 								}.bind(this))
 								.on('error', function (e) {
-									this.sendResponseError(e, res, req);
+									this.sendResponseError(e, 0, res, req);
 								}.bind(this));
 
 								this.logger.info("%s unlock account %s", req.route.path, req.body.address);
 
 							} else {
-								res.send(this.getResponse("Error: could not decrypt key with given passphrase", null));
+								res.send(this.getResponse("Error: could not decrypt key with given passphrase", null, 0));
 							}
 						}.bind(this));
 					} else {
-						this.sendResponseError(redisError, res, req);
+						this.sendResponseError(redisError, 0, res, req);
 					}
 				}.bind(this));
 
 			} catch(e) {
-				this.sendResponseError(e.message, res, req);
+				this.sendResponseError(e.message, 0, res, req);
 			}
 
 		});
@@ -253,7 +266,7 @@ var microService = function () {
 			try {
 
 				if (!this.db.status) {
-					this.sendResponseError("Error: redis is not connecting", res, req);
+					this.sendResponseError("Error: redis is not connecting", 0, res, req);
 					return;
 				}
 
@@ -265,19 +278,19 @@ var microService = function () {
 						this.db.methods.hset('addresses', result, passphrase, function (hsetError, hsetResult) {
 							if (hsetResult) {
 								this.logger.info("%s redis hset addresses %s", req.route.path, result);
-								res.send(this.getResponse(error, {'result': result} ));
+								res.send(this.getResponse(error, {'result': result}, 0));
 							} else {
-								this.sendResponseError(hsetError, res, req);
+								this.sendResponseError(hsetError, 0, res, req);
 							}
-						});
+						}.bind(this));
 					} else {
-						this.sendResponseError(error, res, req);
+						this.sendResponseError(error, 0, res, req);
 					}
 
 				}.bind(this));
 
 			} catch(e) {
-				this.sendResponseError(e.message, res, req);
+				this.sendResponseError(e.message, 0, res, req);
 			}
 		});
 
