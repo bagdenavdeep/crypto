@@ -65,12 +65,12 @@ $ npm install forever -g
 
 Для демонизации app.js запускаем
 ```
-$ NODE_ENV=development forever start config/forever.json
+$ PORT=8000 NODE_ENV=development forever start config/forever.json
 ```
 
 Для остановки
 ```
-$ NODE_ENV=development forever stopall
+$ PORT=8000 NODE_ENV=development forever stopall
 ```
 
 Проверить работоспособность можно [http://localhost:8000/get_deal_status?id=123](http://localhost:8000/get_deal_status?id=123)
